@@ -1,0 +1,12 @@
+{
+  "name": "linderos-gnss",
+  "version": "0.1.0",
+  "description": "Dibuja linderos, casas, cercas y puntos desde exportaciones de APKSURV (CSV, TXT, XLS, XLSX) y exporta a DXF y CSV.",
+  "main": "js/core.js",
+  "scripts": {
+    "test": "node tests/test_core.js"
+  },
+  "keywords": ["gnss", "topografia", "apksurv", "dxf", "linderos", "apeks", "cj3i"],
+  "license": "MIT",
+  "private": false
+}

@@ -1,0 +1,107 @@
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: #f3f4f6;
+  color: #1f2937;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+header, main, footer { max-width: 960px; margin: 0 auto; padding: 0 12px; }
+header { padding-top: 16px; }
+h1 { margin: 0; font-size: 1.5rem; }
+h2 { font-size: 1.1rem; margin: 0 0 8px; }
+.sub { margin: 4px 0 12px; color: #4b5563; font-size: 0.95rem; }
+
+section {
+  background: #fff;
+  border-radius: 10px;
+  padding: 14px;
+  margin: 12px 0;
+  box-shadow: 0 1px 2px rgba(0,0,0,.06);
+}
+
+.ayuda { font-size: 0.9rem; color: #4b5563; margin: 6px 0; }
+.ok { color: #065f46; font-size: 0.95rem; min-height: 1.2em; margin-top: 8px; }
+.error { color: #b91c1c; }
+
+.boton, button {
+  display: inline-block;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid #2563eb;
+  background: #fff;
+  color: #2563eb;
+  font-size: 1rem;
+  cursor: pointer;
+}
+.boton { background: #2563eb; color: #fff; }
+.primario { background: #16a34a; border-color: #16a34a; color: #fff; }
+button:hover, .boton:hover { filter: brightness(0.95); }
+
+details { margin: 10px 0; }
+summary { cursor: pointer; color: #2563eb; }
+textarea {
+  width: 100%;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.9rem;
+  margin: 8px 0;
+  padding: 8px;
+}
+
+.check { display: flex; gap: 8px; align-items: center; margin: 8px 0; font-size: 0.95rem; }
+.opciones { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 8px; }
+
+.scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+th, td { border-bottom: 1px solid #e5e7eb; padding: 6px 8px; text-align: right; white-space: nowrap; }
+th { background: #f9fafb; text-align: right; }
+th:nth-child(2), td:nth-child(2), td.aviso { text-align: left; }
+td.aviso { color: #b45309; white-space: normal; }
+select { padding: 4px; font-size: 0.9rem; }
+
+.sw {
+  display: inline-block;
+  width: 12px; height: 12px;
+  border-radius: 3px;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.resumen { font-size: 0.9rem; margin-top: 10px; line-height: 1.6; }
+
+#mapa {
+  width: 100%;
+  height: 60vh;
+  min-height: 320px;
+  background: #fafafa;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  touch-action: none;   /* permite paneo y pinza sin que la página se desplace */
+  cursor: grab;
+}
+
+code { background: #f3f4f6; padding: 1px 4px; border-radius: 4px; }
+footer { text-align: center; font-size: 0.8rem; color: #6b7280; padding: 16px 0 24px; }
+
+/* Respeta el atributo hidden aunque un botón tenga display propio */
+[hidden] { display: none !important; }
+
+/* Pantallas pequeñas (celular y controlador) */
+@media (max-width: 600px) {
+  h1 { font-size: 1.25rem; }
+  section { padding: 12px; }
+  .boton, button { width: 100%; padding: 12px; font-size: 1.05rem; }
+  .opciones button { width: auto; flex: 1 1 45%; }
+  .opciones { gap: 8px; }
+  #mapa { height: 55vh; min-height: 300px; }
+  th, td { padding: 8px 6px; font-size: 0.85rem; }
+  .resumen { font-size: 0.85rem; }
+}
+
+/* Pantalla táctil: botones de tamaño cómodo para el dedo */
+@media (pointer: coarse) {
+  select { min-height: 40px; }
+  input[type="checkbox"] { width: 22px; height: 22px; }
+}
