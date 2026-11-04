@@ -79,6 +79,7 @@ select { padding: 4px; font-size: 0.9rem; }
   border: 1px solid #d1d5db;
   border-radius: 8px;
   touch-action: none;   /* permite paneo y pinza sin que la página se desplace */
+  overscroll-behavior: contain;   /* la rueda no mueve toda la página */
   cursor: grab;
 }
 

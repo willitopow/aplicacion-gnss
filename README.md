@@ -2,7 +2,7 @@
 
 Aplicación web para dibujar levantamientos topográficos a partir de los puntos que exporta **APKSURV** (controladores APEKS CJ3i y similares). Lee CSV, TXT, XLS y XLSX, agrupa los puntos por código, calcula áreas, perímetros y longitudes, y exporta a **DXF** y **CSV**.
 
-Funciona en el navegador del controlador, sin servidor y sin conexión a internet (una vez descargados los archivos).
+Funciona en el navegador del controlador, el PC y el celular, con conexión a internet.
 
 ## Qué hace
 
@@ -30,7 +30,7 @@ Cada código es una capa. Si tienes varios objetos del mismo tipo (dos casas), d
 
 ## Uso en PC, celular y controlador
 
-La aplicación es una **PWA**: se instala como un ícono y funciona sin internet después de la primera carga.
+La aplicación es una **PWA**: se instala como un ícono y se usa con internet, siempre con la versión más reciente.
 
 1. **Publícala en GitHub Pages** (ver más abajo). Así tienes una dirección `https://` que todos los equipos pueden abrir.
 2. **Abre la dirección una vez con internet** en cada equipo. Esto guarda la app en el dispositivo.
@@ -38,13 +38,11 @@ La aplicación es una **PWA**: se instala como un ícono y funciona sin internet
    - *PC (Chrome o Edge):* icono de instalar en la barra de direcciones, o el botón **Instalar en este dispositivo** del pie de página.
    - *Celular Android y CJ3i (Chrome):* menú ⋮ → **Instalar aplicación** o **Añadir a la pantalla de inicio**.
    - *iPhone (Safari):* botón Compartir → **Añadir a pantalla de inicio**. En iPhone el botón automático no aparece; hay que hacerlo desde el menú.
-4. **Sin internet en campo:** abre el ícono instalado. Los datos se cargan desde el archivo que traigas (cable, almacenamiento o Drive); no se suben a ningún lado.
+4. **Los datos no salen del equipo:** la app se descarga desde internet, pero el archivo que cargas se procesa en el propio dispositivo y no se sube a ningún lado.
 
 Para pasar archivos del controlador al PC: copia el `.csv` o `.dxf` por cable USB, por almacenamiento compartido o por correo. Como todo se procesa en el dispositivo, el archivo no sale de él salvo que tú lo envíes.
 
-**Actualizaciones:** cuando publiques cambios, sube el número `VERSION` en `sw.js` (por ejemplo `'v2'`). Así los equipos descargan la versión nueva en la siguiente conexión.
-
-**Nota:** el modo sin conexión solo funciona desde `https://` (GitHub Pages) o `localhost`. Si abres el archivo directamente desde una carpeta (`file://`), la app funciona, pero no se guarda para uso sin internet.
+**Actualizaciones:** al subir cambios a GitHub, la app se actualiza sola en el siguiente uso (con **Ctrl + F5** en PC si el navegador conserva una copia).
 
 ## Sobre DWG
 
@@ -66,15 +64,15 @@ git push -u origin main
 
 Para usarla desde cualquier lugar con enlace, activa **GitHub Pages** en *Settings → Pages* (rama `main`, carpeta `/root`). Luego abre `https://TU_USUARIO.github.io/linderos-gnss/` en el CJ3i.
 
-## Excel (XLS / XLSX) sin internet
+## Excel (XLS / XLSX)
 
-La lectura de Excel usa [SheetJS](https://sheetjs.com/). Para que funcione sin conexión, descarga el archivo y guárdalo en `libs/`:
+La lectura de Excel usa [SheetJS](https://sheetjs.com/). Se carga desde internet automáticamente. Si prefieres tenerla en el repositorio, descárgala en `libs/`:
 
 ```bash
 curl -L -o libs/xlsx.full.min.js https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js
 ```
 
-Si el archivo no está en `libs/`, la aplicación lo carga desde internet la primera vez que lo necesite.
+
 
 ## Pruebas
 
