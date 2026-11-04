@@ -48,9 +48,11 @@ Para pasar archivos del controlador al PC: copia el `.csv` o `.dxf` por cable US
 
 En la sección **4. Curvas de nivel y alturas**:
 
-- **Equidistancia:** escribe cada cuánto quieres las curvas (0.5, 1, 2 m…). Se recalculan al instante.
+- **Equidistancia:** escribe cada cuánto quieres las curvas (0.05, 0.2, 0.5, 1 m…) o usa los botones rápidos. Se recalculan al instante.
 - **Altura de cada punto:** cambia el valor en la tabla. Las curvas y el mapa se actualizan solos.
-- **Borrar:** quita un punto de todo el proyecto (capas, áreas, curvas). Si te equivocaste, **Restaurar puntos borrados** lo devuelve.
+- **Corregir en el plano:** toca un punto del dibujo. Aparece su panel con el número, la altura, y los botones **Cambiar altura** y **Borrar punto** (en computadora también sirve la tecla Suprimir). Las curvas se recalculan para ver cómo quedan.
+- **Borrar desde la tabla:** cada fila tiene su botón Borrar.
+- **Restaurar:** **Restaurar puntos borrados** devuelve los puntos borrados.
 - Las curvas se dibujan acotadas (con su altura), y en el DXF salen en las capas `CURVAS` (con la altura como cota Z) y `CURVAS_TXT`.
 
 Las curvas se calculan con triangulación de Delaunay e interpolación lineal. Solo existen dentro del área que cubren los puntos con altura.

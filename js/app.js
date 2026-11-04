@@ -20,6 +20,7 @@
     equidistancia: 1,
     curvas: null,      // resultado de Core.curvasNivel
     borrados: [],      // puntos borrados (se pueden restaurar)
+    sel: null,         // orden del punto seleccionado en el mapa
     vb: null,          // viewBox actual del mapa (coordenadas locales)
     origen: null,      // origen local del mapa: { x: minE, y: maxN }
     escala0: 1         // ancho inicial de la vista (base para límites de zoom)
@@ -131,6 +132,7 @@
 
     estado.puntos = r.puntos;
     estado.borrados = [];
+    estado.sel = null;
     estado.capas = [];
     estado.vb = null;
     regrupar();
@@ -173,6 +175,35 @@
     pintarTabla();
     pintarTablaAlturas();
     pintarMapa();
+  }
+
+  /* ---------- puntos: seleccionar, cambiar altura y borrar ---------- */
+
+  function borrarPunto(orden) {
+    const p = estado.puntos.find(x => x.orden === orden);
+    if (!p) return;
+    estado.borrados.push(p);
+    estado.puntos = estado.puntos.filter(x => x !== p);
+    if (estado.sel === orden) estado.sel = null;
+    regrupar();
+    mostrarPanel();
+  }
+
+  function seleccionar(orden) {
+    estado.sel = orden;
+    mostrarPanel();
+    pintarMapa();
+  }
+
+  function mostrarPanel() {
+    const panel = $('panelPunto');
+    const p = estado.sel === null ? null : estado.puntos.find(x => x.orden === estado.sel);
+    if (!p) { panel.hidden = true; estado.sel = null; return; }
+    panel.hidden = false;
+    $('selNum').textContent = Core.numeroPunto(p);
+    $('selE').textContent = p.E.toFixed(2);
+    $('selN').textContent = p.N.toFixed(2);
+    $('selH').value = p.h === null ? '' : p.h.toFixed(3);
   }
 
   /* ---------- curvas de nivel y alturas ---------- */
@@ -286,7 +317,7 @@
       const col = c.color;
       if (c.tipo === 'puntos') {
         c.puntos.forEach(p => {
-          g += '<circle cx="' + sx(p) + '" cy="' + sy(p) + '" r="' + (u * 1.5) + '" fill="' + col + '"/>';
+          g += '<circle class="pt" data-o="' + p.orden + '" cx="' + sx(p) + '" cy="' + sy(p) + '" r="' + (u * 1.5) + '" fill="' + col + '"/>';
           if (etqPts) {
             g += '<text x="' + (sx(p) + u * 2) + '" y="' + (sy(p) - u * 1.5) +
                  '" font-size="' + (u * 5) + '" fill="#222">' + esc(Core.numeroPunto(p)) + '</text>';
@@ -303,7 +334,7 @@
           g += '<circle cx="' + sx(ctr) + '" cy="' + sy(ctr) + '" r="' + ci.r +
                '" fill="' + col + '" fill-opacity="0.2" stroke="' + col + '" stroke-width="' + (u * 1.5) + '"/>';
           fig.forEach(p => {
-            g += '<circle cx="' + sx(p) + '" cy="' + sy(p) + '" r="' + u + '" fill="' + col + '"/>';
+            g += '<circle class="pt" data-o="' + p.orden + '" cx="' + sx(p) + '" cy="' + sy(p) + '" r="' + u + '" fill="' + col + '"/>';
             if (etqPts) {
               g += '<text x="' + (sx(p) + u * 2) + '" y="' + (sy(p) - u * 1.5) +
                    '" font-size="' + (u * 4) + '" fill="#222">' + esc(Core.numeroPunto(p)) + '</text>';
@@ -328,7 +359,7 @@
           ? '<polygon points="' + d + '" fill="' + col + '" fill-opacity="0.2" stroke="' + col + '" stroke-width="' + (u * 1.5) + '"/>'
           : '<polyline points="' + d + '" fill="none" stroke="' + col + '" stroke-width="' + (u * 1.5) + '"/>';
         fig.forEach(p => {
-          g += '<circle cx="' + sx(p) + '" cy="' + sy(p) + '" r="' + u + '" fill="' + col + '"/>';
+          g += '<circle class="pt" data-o="' + p.orden + '" cx="' + sx(p) + '" cy="' + sy(p) + '" r="' + u + '" fill="' + col + '"/>';
           if (etqPts) {
             g += '<text x="' + (sx(p) + u * 2) + '" y="' + (sy(p) - u * 1.5) +
                  '" font-size="' + (u * 4) + '" fill="#222">' + esc(Core.numeroPunto(p)) + '</text>';
@@ -347,6 +378,13 @@
       });
     });
 
+    if (estado.sel !== null) {
+      const ps = estado.puntos.find(x => x.orden === estado.sel);
+      if (ps && act.some(c => c.puntos.indexOf(ps) >= 0)) {
+        g += '<circle cx="' + sx(ps) + '" cy="' + sy(ps) + '" r="' + (u * 3) +
+             '" fill="none" stroke="#dc2626" stroke-width="' + (u * 0.8) + '"/>';
+      }
+    }
     if ($('chkCurvas').checked && estado.curvas && estado.curvas.curvas.length) {
       estado.curvas.curvas.forEach(cv => cv.lineas.forEach(l => {
         const d = l.pts.map(p => sx(p) + ',' + sy(p)).join(' ');
@@ -420,8 +458,10 @@
     // Pantalla táctil: un dedo mueve, dos dedos hacen zoom (pinza)
     const punteros = new Map();
     let distAnterior = null;
+    let toque = null;   // para detectar un toque sobre un punto
 
     svg.addEventListener('pointerdown', e => {
+      toque = { x: e.clientX, y: e.clientY, obj: e.target, pid: e.pointerId };
       punteros.set(e.pointerId, { x: e.clientX, y: e.clientY });
       svg.setPointerCapture(e.pointerId);
       distAnterior = null;
@@ -448,6 +488,11 @@
     });
 
     const soltar = e => {
+      if (toque && toque.pid === e.pointerId && Math.hypot(e.clientX - toque.x, e.clientY - toque.y) < 6) {
+        const id = toque.obj && toque.obj.getAttribute ? toque.obj.getAttribute('data-o') : null;
+        if (id !== null) seleccionar(Number(id));
+      }
+      toque = null;
       punteros.delete(e.pointerId);
       distAnterior = null;
     };
@@ -525,11 +570,43 @@
     });
     $('chkCurvas').addEventListener('change', pintarMapa);
 
+    document.querySelectorAll('button.eq').forEach(b => b.addEventListener('click', () => {
+      $('equi').value = b.getAttribute('data-eq');
+      estado.equidistancia = Number(b.getAttribute('data-eq'));
+      refrescar();
+    }));
+
+    $('btnSelAplicar').addEventListener('click', () => {
+      const p = estado.puntos.find(x => x.orden === estado.sel);
+      if (!p) return;
+      const txt = $('selH').value.trim().replace(',', '.');
+      p.h = (txt === '' || !isFinite(Number(txt))) ? null : Number(txt);
+      refrescar();
+      mostrarPanel();
+    });
+    $('btnSelBorrar').addEventListener('click', () => {
+      if (estado.sel !== null) borrarPunto(estado.sel);
+    });
+    $('btnSelCerrar').addEventListener('click', () => {
+      estado.sel = null;
+      mostrarPanel();
+      pintarMapa();
+    });
+    // Tecla Suprimir borra el punto seleccionado (si no estás escribiendo en un campo)
+    document.addEventListener('keydown', e => {
+      if (e.key !== 'Delete' || estado.sel === null) return;
+      const t = e.target.tagName;
+      if (t === 'INPUT' || t === 'TEXTAREA') return;
+      borrarPunto(estado.sel);
+    });
+
     $('btnRestaurar').addEventListener('click', () => {
       if (!estado.borrados.length) return mostrar('No hay puntos borrados.', true);
       estado.puntos = estado.puntos.concat(estado.borrados).sort((a, b) => a.orden - b.orden);
       estado.borrados = [];
+      estado.sel = null;
       regrupar();
+      mostrarPanel();
       mostrar('Puntos restaurados.');
     });
 
@@ -546,11 +623,7 @@
     // Borrar un punto: sale de todas las capas, de las curvas y de las áreas
     $('tbodyAlturas').addEventListener('click', e => {
       if (!e.target.classList.contains('borrar')) return;
-      const p = estado.puntos.find(x => x.orden === Number(e.target.getAttribute('data-o')));
-      if (!p) return;
-      estado.borrados.push(p);
-      estado.puntos = estado.puntos.filter(x => x !== p);
-      regrupar();
+      borrarPunto(Number(e.target.getAttribute('data-o')));
     });
 
     $('btnCroquis').addEventListener('click', () => {

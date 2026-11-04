@@ -73,6 +73,16 @@
       <button id="btnVista" type="button">Ajustar vista</button>
     </div>
     <svg id="mapa" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet"></svg>
+    <div id="panelPunto" class="panel-punto" hidden>
+      <div><b>Punto <span id="selNum"></span></b> · E <span id="selE"></span> · N <span id="selN"></span></div>
+      <div class="opciones">
+        <label class="check">Altura h (m)
+          <input type="text" id="selH" inputmode="decimal" class="altura"></label>
+        <button id="btnSelAplicar" type="button">Cambiar altura</button>
+        <button id="btnSelBorrar" type="button" class="borrar">Borrar punto</button>
+        <button id="btnSelCerrar" type="button">Cerrar</button>
+      </div>
+    </div>
     <p class="ayuda">Rueda del ratón o pinza para acercar. Arrastra para mover. Norte arriba.</p>
   </section>
 
@@ -82,6 +92,12 @@
     <div class="opciones">
       <label class="check">Equidistancia (m)
         <input type="text" id="equi" inputmode="decimal" value="1" class="corto"></label>
+      <span class="eq-rapida">
+        <button type="button" class="eq" data-eq="0.1">0.1</button>
+        <button type="button" class="eq" data-eq="0.2">0.2</button>
+        <button type="button" class="eq" data-eq="0.5">0.5</button>
+        <button type="button" class="eq" data-eq="1">1</button>
+      </span>
       <label class="check"><input type="checkbox" id="chkCurvas" checked> Mostrar curvas en el mapa</label>
       <button id="btnRestaurar" type="button">Restaurar puntos borrados</button>
     </div>

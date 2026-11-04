@@ -117,3 +117,10 @@ td:nth-child(8) { text-align: left; }
 input.altura { width: 110px; padding: 4px 6px; font-size: 0.9rem; }
 input.corto { width: 90px; padding: 4px 6px; font-size: 0.95rem; }
 button.borrar { padding: 4px 10px; font-size: 0.85rem; border-color: #b91c1c; color: #b91c1c; width: auto; }
+
+/* Acceso rápido de equidistancia y panel de punto seleccionado */
+.eq-rapida { display: inline-flex; gap: 4px; }
+button.eq { padding: 6px 10px; font-size: 0.9rem; width: auto; }
+.panel-punto { background: #fff7ed; border: 1px solid #fdba74; border-radius: 8px; padding: 10px; margin-top: 8px; font-size: 0.95rem; }
+.panel-punto[hidden] { display: none; }
+#mapa circle.pt { cursor: pointer; }
