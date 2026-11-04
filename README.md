@@ -1,7 +1,4 @@
 # Linderos GNSS
-## ▶ Abrir la aplicación
-
-**[https://willitopow.github.io/aplicacion-gnss/](https://willitopow.github.io/aplicacion-gnss/)**
 
 Aplicación web para dibujar levantamientos topográficos a partir de los puntos que exporta **APKSURV** (controladores APEKS CJ3i y similares). Lee CSV, TXT, XLS y XLSX, agrupa los puntos por código, calcula áreas, perímetros y longitudes, y exporta a **DXF** y **CSV**.
 

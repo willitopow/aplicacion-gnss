@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Linderos GNSS</title>
+<meta name="description" content="Dibuja linderos desde puntos APKSURV y exporta a DXF">
+<meta name="theme-color" content="#1e3a8a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Linderos">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="css/estilo.css">
+</head>
+<body>
+
+<header>
+  <h1>Linderos GNSS</h1>
+  <p class="sub">Dibuja puntos de APKSURV (CSV, TXT, XLS, XLSX), agrúpalos por código y exporta a DXF.</p>
+</header>
+
+<main>
+
+  <section>
+    <h2>1. Cargar datos</h2>
+    <label class="boton">
+      Elegir archivo (.csv, .txt, .tsv, .xls, .xlsx)
+      <input type="file" id="archivo" accept=".csv,.txt,.tsv,.xls,.xlsx,.xlsm" hidden>
+    </label>
+    <details>
+      <summary>O pegar datos como texto</summary>
+      <textarea id="pegado" rows="5" placeholder="Nombre,Código,N,E,h&#10;PT1,casa,868078.8,1058879.1,997.5"></textarea>
+      <button id="btnPegado" type="button">Procesar texto</button>
+    </details>
+    <label class="check">
+      <input type="checkbox" id="chkQuitar">
+      Agrupar por nombre sin número (CASA1, CASA2 → capa CASA)
+    </label>
+    <div id="mensaje" class="ok"></div>
+  </section>
+
+  <section>
+    <h2>2. Capas</h2>
+    <p class="ayuda">Cada código forma una capa. Elige cómo dibujarla: puntos, línea abierta (cerca, vía) o polígono cerrado (lindero, casa). Los puntos se unen en el orden de su nombre (PT1, PT2, PT3…).</p>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Incl.</th><th>Capa</th><th>Tipo</th><th>Puntos</th>
+            <th>Área m²</th><th>Ha</th><th>Perím. m</th><th>Aviso</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <div id="resumen" class="resumen"></div>
+  </section>
+
+  <section>
+    <h2>3. Mapa</h2>
+    <div class="opciones">
+      <label class="check"><input type="checkbox" id="chkEtqPts" checked> Nombres de puntos</label>
+      <label class="check"><input type="checkbox" id="chkEtqArea" checked> Nombre y área de polígonos</label>
+      <button id="btnVista" type="button">Ajustar vista</button>
+    </div>
+    <svg id="mapa" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet"></svg>
+    <p class="ayuda">Rueda del ratón o pinza para acercar. Arrastra para mover. Norte arriba.</p>
+  </section>
+
+  <section>
+    <h2>4. Exportar</h2>
+    <div class="opciones">
+      <button id="btnDXF" type="button" class="primario">Exportar DXF</button>
+      <button id="btnCSV" type="button">Exportar resultados CSV</button>
+    </div>
+    <p class="ayuda">
+      <b>DWG:</b> es un formato propietario de Autodesk y no se genera de forma fiable desde el navegador.
+      Exporta DXF (lo abren AutoCAD, BricsCAD, LibreCAD, QGIS y Civil 3D) y, si necesitas DWG,
+      usa el script <code>tools/dxf_a_dwg.sh</code> con ODA File Converter (gratuito).
+    </p>
+  </section>
+
+</main>
+
+<footer>
+  <button id="btnInstalar" type="button" hidden>Instalar en este dispositivo</button>
+  <p>Código abierto · Licencia MIT · Funciona sin conexión después de la primera carga</p>
+</footer>
+
+<script src="js/core.js"></script>
+<script src="js/app.js"></script>
+<script>
+  // Registro del service worker (requiere https o localhost)
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').catch(err => console.warn('SW no registrado:', err));
+    });
+  }
+  // Botón "Instalar": Chrome en PC, Android y CJ3i lo ofrecen
+  let promptInstalar = null;
+  const btnInstalar = document.getElementById('btnInstalar');
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    promptInstalar = e;
+    btnInstalar.hidden = false;
+  });
+  btnInstalar.addEventListener('click', async () => {
+    if (!promptInstalar) return;
+    promptInstalar.prompt();
+    await promptInstalar.userChoice;
+    promptInstalar = null;
+    btnInstalar.hidden = true;
+  });
+  window.addEventListener('appinstalled', () => { btnInstalar.hidden = true; });
+</script>
+</body>
+</html>
