@@ -9,10 +9,10 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Linderos">
-<link rel="manifest" href="manifest.webmanifest?v=6">
+<link rel="manifest" href="manifest.webmanifest?v=7">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-<link rel="stylesheet" href="css/estilo.css?v=6">
+<link rel="stylesheet" href="css/estilo.css?v=7">
 </head>
 <body>
 
@@ -77,8 +77,27 @@
   </section>
 
   <section>
-    <h2>4. Exportar</h2>
+    <h2>4. Curvas de nivel y alturas</h2>
+    <p class="ayuda">Usa la altura (h) de cada punto. Puedes cambiar una altura, borrar un punto o restaurarlos; las curvas se recalculan solas. Las curvas solo llegan hasta el área que cubren los puntos.</p>
     <div class="opciones">
+      <label class="check">Equidistancia (m)
+        <input type="text" id="equi" inputmode="decimal" value="1" class="corto"></label>
+      <label class="check"><input type="checkbox" id="chkCurvas" checked> Mostrar curvas en el mapa</label>
+      <button id="btnRestaurar" type="button">Restaurar puntos borrados</button>
+    </div>
+    <div id="resumenCurvas" class="resumen"></div>
+    <div class="scroll tabla-alturas">
+      <table>
+        <thead><tr><th>Punto</th><th>E</th><th>N</th><th>Altura h (m)</th><th></th></tr></thead>
+        <tbody id="tbodyAlturas"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>5. Exportar</h2>
+    <div class="opciones">
+      <label class="check"><input type="checkbox" id="chkCurvasDXF" checked> Incluir curvas de nivel</label>
       <button id="btnDXF" type="button" class="primario">Exportar DXF</button>
       <button id="btnCSV" type="button">Exportar resultados CSV</button>
     </div>
@@ -96,8 +115,8 @@
   <p>Código abierto · Licencia MIT · Funciona sin conexión después de la primera carga</p>
 </footer>
 
-<script src="js/core.js?v=6"></script>
-<script src="js/app.js?v=6"></script>
+<script src="js/core.js?v=7"></script>
+<script src="js/app.js?v=7"></script>
 <script>
   // Registro del service worker (requiere https o localhost)
   if ('serviceWorker' in navigator) {

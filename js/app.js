@@ -17,6 +17,9 @@
     nombreBase: 'proyecto',
     croquis: '',       // texto del croquis
     avisosCroquis: [],
+    equidistancia: 1,
+    curvas: null,      // resultado de Core.curvasNivel
+    borrados: [],      // puntos borrados (se pueden restaurar)
     vb: null,          // viewBox actual del mapa (coordenadas locales)
     origen: null,      // origen local del mapa: { x: minE, y: maxN }
     escala0: 1         // ancho inicial de la vista (base para límites de zoom)
@@ -127,6 +130,7 @@
     const cols = Object.keys(r.mapa).map(k => nombres[k] + ' (col ' + (r.mapa[k] + 1) + ')').join(', ');
 
     estado.puntos = r.puntos;
+    estado.borrados = [];
     estado.capas = [];
     estado.vb = null;
     regrupar();
@@ -161,13 +165,52 @@
       c.color = colorDeCapa.get(k);
     });
     $('avisoCroquis').textContent = estado.avisosCroquis.join(' · ');
-    estado.vb = null;
     refrescar();
   }
 
   function refrescar() {
+    recalcCurvas();
     pintarTabla();
+    pintarTablaAlturas();
     pintarMapa();
+  }
+
+  /* ---------- curvas de nivel y alturas ---------- */
+
+  function recalcCurvas() {
+    const eq = estado.equidistancia;
+    if (!(eq > 0)) {
+      estado.curvas = null;
+      $('resumenCurvas').textContent = 'Escribe una equidistancia mayor que 0 (por ejemplo 0.5 o 1).';
+      return;
+    }
+    estado.curvas = Core.curvasNivel(estado.puntos, eq);
+    const c = estado.curvas;
+    if (c.puntos < 3) {
+      $('resumenCurvas').textContent = 'Se necesitan al menos 3 puntos con altura para calcular curvas.';
+      return;
+    }
+    $('resumenCurvas').innerHTML =
+      '<b>Altura mín.:</b> ' + c.hMin.toFixed(2) + ' m · <b>máx.:</b> ' + c.hMax.toFixed(2) + ' m' +
+      ' · <b>Niveles:</b> ' + c.curvas.length +
+      (c.sinAltura ? ' · <b>Puntos sin altura (no entran):</b> ' + c.sinAltura : '');
+  }
+
+  // Lista de puntos con altura editable y botón para borrar
+  function pintarTablaAlturas() {
+    const tb = $('tbodyAlturas');
+    tb.innerHTML = '';
+    estado.puntos.forEach(p => {
+      const tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td>' + esc(Core.numeroPunto(p)) + '</td>' +
+        '<td>' + p.E.toFixed(2) + '</td>' +
+        '<td>' + p.N.toFixed(2) + '</td>' +
+        '<td><input type="text" class="altura" inputmode="decimal" data-o="' + p.orden + '" value="' +
+          (p.h === null ? '' : p.h.toFixed(3)) + '"></td>' +
+        '<td><button type="button" class="borrar" data-o="' + p.orden + '">Borrar</button></td>';
+      tb.appendChild(tr);
+    });
   }
 
   /* ---------- tabla de capas ---------- */
@@ -304,6 +347,14 @@
       });
     });
 
+    if ($('chkCurvas').checked && estado.curvas && estado.curvas.curvas.length) {
+      estado.curvas.curvas.forEach(cv => cv.lineas.forEach(l => {
+        const d = l.pts.map(p => sx(p) + ',' + sy(p)).join(' ');
+        g += '<polyline points="' + d + '" fill="none" stroke="#8b5a2b" stroke-width="' + (u * 0.6) + '"/>';
+        g += '<text x="' + sx(l.etiqueta) + '" y="' + sy(l.etiqueta) + '" font-size="' + (u * 3.5) +
+             '" text-anchor="middle" fill="#5b3a1a">' + cv.nivel.toFixed(2) + '</text>';
+      }));
+    }
     svg.innerHTML = g;
     aplicarVB();
   }
@@ -412,10 +463,12 @@
     const ext = Core.extension(puntosDe(act));
     if (!ext) return mostrar('No hay puntos para exportar.', true);
     const alt = Math.max(ext.w, ext.h, 1) / 200;   // altura de texto proporcional al dibujo
+    const curvas = $('chkCurvasDXF').checked && estado.curvas && estado.curvas.curvas.length ? estado.curvas : null;
     const txt = Core.generarDXF(act, {
       etiquetasPuntos: $('chkEtqPts').checked,
       etiquetasArea: $('chkEtqArea').checked,
-      alturaTexto: alt
+      alturaTexto: alt,
+      curvas: curvas
     });
     descargar(estado.nombreBase + '.dxf', txt, 'application/dxf');
     mostrar('DXF generado con ' + act.length + ' capas.');
@@ -463,6 +516,41 @@
         estado.capas[i].incluir = e.target.checked;
         pintarMapa();
       }
+    });
+
+    $('equi').addEventListener('change', () => {
+      const v = Number(String($('equi').value).replace(',', '.'));
+      estado.equidistancia = v > 0 ? v : 0;
+      refrescar();
+    });
+    $('chkCurvas').addEventListener('change', pintarMapa);
+
+    $('btnRestaurar').addEventListener('click', () => {
+      if (!estado.borrados.length) return mostrar('No hay puntos borrados.', true);
+      estado.puntos = estado.puntos.concat(estado.borrados).sort((a, b) => a.orden - b.orden);
+      estado.borrados = [];
+      regrupar();
+      mostrar('Puntos restaurados.');
+    });
+
+    // Cambiar una altura: se recalculan curvas y mapa
+    $('tbodyAlturas').addEventListener('change', e => {
+      if (!e.target.classList.contains('altura')) return;
+      const p = estado.puntos.find(x => x.orden === Number(e.target.getAttribute('data-o')));
+      if (!p) return;
+      const txt = e.target.value.trim().replace(',', '.');
+      p.h = (txt === '' || !isFinite(Number(txt))) ? null : Number(txt);
+      refrescar();
+    });
+
+    // Borrar un punto: sale de todas las capas, de las curvas y de las áreas
+    $('tbodyAlturas').addEventListener('click', e => {
+      if (!e.target.classList.contains('borrar')) return;
+      const p = estado.puntos.find(x => x.orden === Number(e.target.getAttribute('data-o')));
+      if (!p) return;
+      estado.borrados.push(p);
+      estado.puntos = estado.puntos.filter(x => x !== p);
+      regrupar();
     });
 
     $('btnCroquis').addEventListener('click', () => {

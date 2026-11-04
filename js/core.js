@@ -347,6 +347,145 @@
     return { capas: capas, avisos: avisos };
   }
 
+  /* ---------- triangulación y curvas de nivel ---------- */
+
+  // Triangulación de Delaunay (Bowyer–Watson). Devuelve triángulos [i, j, k] (índices de pts).
+  function triangular(pts) {
+    const n = pts.length;
+    if (n < 3) return [];
+    let mx = 0, my = 0;
+    pts.forEach(p => { mx += p.E; my += p.N; });
+    mx /= n; my /= n;
+    const P = pts.map(p => ({ x: p.E - mx, y: p.N - my }));   // coordenadas locales (precisión)
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    P.forEach(p => {
+      minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+      minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+    });
+    const dm = Math.max(maxX - minX, maxY - minY) || 1;
+    P.push({ x: 0, y: 20 * dm }, { x: -20 * dm, y: -20 * dm }, { x: 20 * dm, y: -20 * dm });
+
+    function circ(i, j, k) {
+      const a = P[i], b = P[j], c = P[k];
+      const d = 2 * (a.x * (b.y - c.y) + b.x * (c.y - a.y) + c.x * (a.y - b.y));
+      if (Math.abs(d) < 1e-12) return { x: 0, y: 0, r: Infinity };
+      const a2 = a.x * a.x + a.y * a.y, b2 = b.x * b.x + b.y * b.y, c2 = c.x * c.x + c.y * c.y;
+      const x = (a2 * (b.y - c.y) + b2 * (c.y - a.y) + c2 * (a.y - b.y)) / d;
+      const y = (a2 * (c.x - b.x) + b2 * (a.x - c.x) + c2 * (b.x - a.x)) / d;
+      return { x: x, y: y, r: Math.hypot(a.x - x, a.y - y) };
+    }
+    const crear = (i, j, k) => ({ v: [i, j, k], cc: circ(i, j, k) });
+
+    let tris = [crear(n, n + 1, n + 2)];
+    for (let i = 0; i < n; i++) {
+      const p = P[i];
+      const malos = [], buenos = [];
+      tris.forEach(t => {
+        const d = Math.hypot(p.x - t.cc.x, p.y - t.cc.y);
+        if (d < t.cc.r) malos.push(t); else buenos.push(t);
+      });
+      const aristas = new Map();
+      malos.forEach(t => {
+        const v = t.v;
+        [[v[0], v[1]], [v[1], v[2]], [v[2], v[0]]].forEach(([u, w]) => {
+          const k = u < w ? u + ',' + w : w + ',' + u;
+          aristas.set(k, (aristas.get(k) || 0) + 1);
+        });
+      });
+      const nuevos = [];
+      aristas.forEach((cnt, k) => {
+        if (cnt === 1) {
+          const [u, w] = k.split(',').map(Number);
+          nuevos.push(crear(u, w, i));
+        }
+      });
+      tris = buenos.concat(nuevos);
+    }
+    return tris.filter(t => t.v[0] < n && t.v[1] < n && t.v[2] < n).map(t => t.v);
+  }
+
+  // Clave de punto para unir segmentos: redondeo a 0.1 mm; el +0 evita -0 frente a 0
+  function claveP(p) { return (Math.round(p.E * 1e4) + 0) + ',' + (Math.round(p.N * 1e4) + 0); }
+
+  // Curvas de nivel: triangula los puntos con altura, interpola el cruce de cada
+  // nivel en cada triángulo y une los segmentos en polilíneas.
+  // Devuelve { curvas: [{ nivel, lineas: [{ pts, etiqueta }] }], puntos, sinAltura, hMin, hMax }
+  function curvasNivel(puntos, equidistancia) {
+    const eq = Number(equidistancia);
+    const pts = puntos.filter(p => p.h !== null && p.h !== undefined && isFinite(p.h));
+    const res = { curvas: [], puntos: pts.length, sinAltura: puntos.length - pts.length, hMin: null, hMax: null };
+    if (pts.length < 3 || !(eq > 0)) return res;
+
+    let hMin = Infinity, hMax = -Infinity;
+    pts.forEach(p => { hMin = Math.min(hMin, p.h); hMax = Math.max(hMax, p.h); });
+    res.hMin = hMin; res.hMax = hMax;
+
+    const porNivel = new Map();   // m (múltiplo de eq) -> [[puntoA, puntoB], ...]
+    triangular(pts).forEach(([i, j, k]) => {
+      const T = [pts[i], pts[j], pts[k]];
+      const I = [i, j, k];
+      const tmin = Math.min(T[0].h, T[1].h, T[2].h);
+      const tmax = Math.max(T[0].h, T[1].h, T[2].h);
+      for (let m = Math.ceil(tmin / eq); m * eq <= tmax; m++) {
+        // Nivel desplazado 1e-7 veces la equidistancia: ningún vértice queda exactamente sobre la curva
+        const L = m * eq + eq * 1e-7;
+        const cruces = [];
+        for (let e = 0; e < 3; e++) {
+          // Siempre del vértice de menor índice al de mayor: así dos triángulos
+          // vecinos calculan exactamente el mismo punto de cruce.
+          const f = (e + 1) % 3;
+          const a = I[e] < I[f] ? T[e] : T[f];
+          const b = I[e] < I[f] ? T[f] : T[e];
+          let ha = a.h - L, hb = b.h - L;
+          if ((ha < 0) !== (hb < 0)) {
+            const t = ha / (ha - hb);
+            cruces.push({ E: a.E + t * (b.E - a.E), N: a.N + t * (b.N - a.N) });
+          }
+        }
+        // Descarta segmentos de longitud cero (vértice justo sobre el nivel)
+        if (cruces.length === 2 && claveP(cruces[0]) !== claveP(cruces[1])) {
+          if (!porNivel.has(m)) porNivel.set(m, []);
+          porNivel.get(m).push(cruces);
+        }
+      }
+    });
+
+    porNivel.forEach((segs, m) => {
+      // Clave de unión: redondeo a 0.1 mm; el +0 evita que -0 y 0 den claves distintas
+      const clave = claveP;
+      const adj = new Map();
+      segs.forEach((s, i) => s.forEach((p, end) => {
+        const k = clave(p);
+        if (!adj.has(k)) adj.set(k, []);
+        adj.get(k).push({ i: i, end: end });
+      }));
+      const usado = segs.map(() => false);
+      const extender = (linea, alFinal) => {
+        for (;;) {
+          const p = alFinal ? linea[linea.length - 1] : linea[0];
+          const cand = (adj.get(clave(p)) || []).find(x => !usado[x.i]);
+          if (!cand) break;
+          usado[cand.i] = true;
+          const otro = segs[cand.i][cand.end === 0 ? 1 : 0];
+          if (alFinal) linea.push(otro); else linea.unshift(otro);
+        }
+      };
+      const lineas = [];
+      segs.forEach((s, i) => {
+        if (usado[i]) return;
+        usado[i] = true;
+        const linea = [s[0], s[1]];
+        extender(linea, true);
+        extender(linea, false);
+        const mid = linea[Math.floor(linea.length / 2)];
+        lineas.push({ pts: linea, etiqueta: { E: mid.E, N: mid.N } });
+      });
+      res.curvas.push({ nivel: m * eq, lineas: lineas });
+    });
+    res.curvas.sort((a, b) => a.nivel - b.nivel);
+    return res;
+  }
+
   /* ---------- DXF (AutoCAD R12, ASCII) ---------- */
 
   function nombreLayerDXF(nombre, usados) {
@@ -378,6 +517,13 @@
       }
     });
     const items = capas.map(c => ({ capa: c, ly: mapaCapa.get(c.layer || c.nombre).ly }));
+    let lyCurvas = null, lyTxt = null;
+    if (o.curvas && o.curvas.curvas && o.curvas.curvas.length) {
+      lyCurvas = nombreLayerDXF('CURVAS', usados);
+      lyTxt = nombreLayerDXF('CURVAS_TXT', usados);
+      mapaCapa.set('__curvas', { ly: lyCurvas, color: 8 });
+      mapaCapa.set('__txt', { ly: lyTxt, color: 2 });
+    }
 
     const texto = (ly, x, y, s, alt) => {
       par(0, 'TEXT'); par(8, ly); par(10, num(x)); par(20, num(y)); par(30, '0');
@@ -445,6 +591,24 @@
       });
     });
 
+    if (lyCurvas) {
+      o.curvas.curvas.forEach(cv => {
+        cv.lineas.forEach(l => {
+          const pts = l.pts, f = pts[0], u = pts[pts.length - 1];
+          const cerrada = pts.length > 2 && Math.hypot(f.E - u.E, f.N - u.N) < 1e-3;
+          par(0, 'POLYLINE'); par(8, lyCurvas); par(66, 1);
+          par(10, '0'); par(20, '0'); par(30, num(cv.nivel));
+          par(70, cerrada ? 1 : 0);
+          pts.forEach(p => {
+            par(0, 'VERTEX'); par(8, lyCurvas); par(10, num(p.E)); par(20, num(p.N));
+            par(30, num(cv.nivel)); par(70, 0);
+          });
+          par(0, 'SEQEND'); par(8, lyCurvas);
+          texto(lyTxt, l.etiqueta.E, l.etiqueta.N, cv.nivel.toFixed(2), o.alturaTexto);
+        });
+      });
+    }
+
     par(0, 'ENDSEC');
     par(0, 'EOF');
     return out.join('\r\n') + '\r\n';
@@ -471,6 +635,7 @@
     aNumero, sinAcentos, numeroPunto,
     textoAFilas, libroAFilas, filasAPuntos,
     agrupar, tipoSugerido, figuras, croquis, ajusteCirculo,
+    triangular, curvasNivel,
     calcular, extension,
     nombreLayerDXF, generarDXF, generarCSV
   };

@@ -170,4 +170,40 @@ test('Círculo: puntos alineados avisan y no calculan', () => {
   assert.strictEqual(r.area, 0);
 });
 
+test('Curvas de nivel: cono de altura r da curvas de radio igual al nivel', () => {
+  const pts = [];
+  for (let x = -6; x <= 6; x++) for (let y = -6; y <= 6; y++) pts.push({ E: x, N: y, h: Math.hypot(x, y) });
+  const c = Core.curvasNivel(pts, 2);
+  assert.ok(c.curvas.length >= 3);
+  c.curvas.forEach(cv => cv.lineas.forEach(l => l.pts.forEach(p => {
+    assert.ok(Math.abs(Math.hypot(p.E, p.N) - cv.nivel) < 0.1, 'radio fuera de la curva ' + cv.nivel);
+  })));
+});
+
+test('Curvas de nivel: el nivel 2 del cono es un solo lazo cerrado', () => {
+  const pts = [];
+  for (let x = -6; x <= 6; x++) for (let y = -6; y <= 6; y++) pts.push({ E: x, N: y, h: Math.hypot(x, y) });
+  const cv = Core.curvasNivel(pts, 2).curvas.find(v => v.nivel === 2);
+  assert.strictEqual(cv.lineas.length, 1);
+  const l = cv.lineas[0].pts;
+  assert.ok(Math.hypot(l[0].E - l[l.length - 1].E, l[0].N - l[l.length - 1].N) < 1e-3);
+});
+
+test('Curvas de nivel: puntos sin altura no entran y se cuentan', () => {
+  const pts = [{ E: 0, N: 0, h: 1 }, { E: 5, N: 0, h: 2 }, { E: 0, N: 5, h: 3 }, { E: 5, N: 5, h: null }];
+  const c = Core.curvasNivel(pts, 1);
+  assert.strictEqual(c.puntos, 3);
+  assert.strictEqual(c.sinAltura, 1);
+});
+
+test('DXF con curvas: capas CURVAS y CURVAS_TXT', () => {
+  const pts = [];
+  for (let x = -4; x <= 4; x++) for (let y = -4; y <= 4; y++) pts.push({ E: x, N: y, h: Math.hypot(x, y) });
+  const c = Core.curvasNivel(pts, 2);
+  const dxf = Core.generarDXF([], { curvas: c });
+  assert.ok(dxf.includes('CURVAS'));
+  assert.ok(dxf.includes('CURVAS_TXT'));
+  assert.ok(dxf.includes('POLYLINE'));
+});
+
 console.log('\n' + ok + ' pruebas correctas' + (process.exitCode ? ' (hay fallos)' : ''));

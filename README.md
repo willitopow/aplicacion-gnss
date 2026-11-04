@@ -44,6 +44,17 @@ Para pasar archivos del controlador al PC: copia el `.csv` o `.dxf` por cable US
 
 **Actualizaciones:** al subir cambios a GitHub, la app se actualiza sola en el siguiente uso (con **Ctrl + F5** en PC si el navegador conserva una copia).
 
+## Curvas de nivel
+
+En la sección **4. Curvas de nivel y alturas**:
+
+- **Equidistancia:** escribe cada cuánto quieres las curvas (0.5, 1, 2 m…). Se recalculan al instante.
+- **Altura de cada punto:** cambia el valor en la tabla. Las curvas y el mapa se actualizan solos.
+- **Borrar:** quita un punto de todo el proyecto (capas, áreas, curvas). Si te equivocaste, **Restaurar puntos borrados** lo devuelve.
+- Las curvas se dibujan acotadas (con su altura), y en el DXF salen en las capas `CURVAS` (con la altura como cota Z) y `CURVAS_TXT`.
+
+Las curvas se calculan con triangulación de Delaunay e interpolación lineal. Solo existen dentro del área que cubren los puntos con altura.
+
 ## Sobre DWG
 
 DWG es un formato propietario de Autodesk y no se puede generar de forma fiable desde el navegador. La aplicación exporta **DXF**, que AutoCAD y casi todos los programas CAD abren directamente. Si necesitas DWG:

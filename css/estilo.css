@@ -111,3 +111,9 @@ footer { text-align: center; font-size: 0.8rem; color: #6b7280; padding: 16px 0 
 input.union { width: 150px; padding: 4px 6px; font-size: 0.9rem; }
 input.union:disabled { background: #f3f4f6; color: #9ca3af; }
 td:nth-child(8) { text-align: left; }
+
+/* Curvas y alturas */
+.tabla-alturas { max-height: 360px; overflow: auto; margin-top: 8px; }
+input.altura { width: 110px; padding: 4px 6px; font-size: 0.9rem; }
+input.corto { width: 90px; padding: 4px 6px; font-size: 0.95rem; }
+button.borrar { padding: 4px 10px; font-size: 0.85rem; border-color: #b91c1c; color: #b91c1c; width: auto; }
