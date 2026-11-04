@@ -58,11 +58,12 @@ test('Orden natural de puntos: PT2 antes que PT10', () => {
   assert.deepStrictEqual(capa.puntos.map(p => p.nombre), ['PT2', 'PT10']);
 });
 
-test('Quitar número del código agrupa CASA1..CASA4 en una sola capa', () => {
-  const pts = ['casa1', 'casa2', 'casa3'].map((c, i) => ({ nombre: 'P' + i, codigo: c, N: i, E: i, orden: i }));
+test('Con separar figuras: ZV1, ZV2 son figuras distintas en el mismo layer ZV', () => {
+  const pts = ['zv1','zv1','zv1','zv2','zv2','zv2'].map((c,i) => ({ nombre: 'P'+i, codigo: c, N: i, E: i, orden: i }));
   const capas = Core.agrupar(pts, { quitarNumero: true });
-  assert.strictEqual(capas.length, 1);
-  assert.strictEqual(capas[0].nombre, 'CASA');
+  assert.strictEqual(capas.length, 2);
+  assert.deepStrictEqual(capas.map(c => c.nombre), ['ZV1', 'ZV2']);
+  assert.ok(capas.every(c => c.layer === 'ZV'));
   assert.strictEqual(capas[0].puntos.length, 3);
 });
 
@@ -145,6 +146,28 @@ test('Croquis: avisa de números inexistentes y de líneas mal escritas', () => 
   const pts = [1,2,3].map(n => ({ nombre: 'PT'+n, codigo: 'x', N: n, E: n, orden: n }));
   const cr = Core.croquis('CASA | poligono | 1-2-3-99\nMAL', pts);
   assert.strictEqual(cr.avisos.length, 2);
+});
+
+test('Círculo: 3 puntos definen el círculo exacto', () => {
+  // círculo centro (10,20) radio 5
+  const ang = [0, 2.1, 4.3].map(a => ({ E: 10 + 5 * Math.cos(a), N: 20 + 5 * Math.sin(a) }));
+  const c = Core.ajusteCirculo(ang);
+  assert.ok(Math.abs(c.cx - 10) < 1e-6 && Math.abs(c.cy - 20) < 1e-6 && Math.abs(c.r - 5) < 1e-6);
+  const r = Core.calcular({ tipo: 'circulo', puntos: ang.map((p, i) => ({ ...p, nombre: 'P' + i })) });
+  assert.ok(Math.abs(r.area - Math.PI * 25) < 1e-6);
+});
+
+test('Círculo: 6 puntos sobre la fuente se ajustan bien', () => {
+  const pts = [0, 60, 120, 180, 240, 300].map(a => ({ E: 5 * Math.cos(a * Math.PI / 180), N: 5 * Math.sin(a * Math.PI / 180) }));
+  const c = Core.ajusteCirculo(pts);
+  assert.ok(Math.abs(c.r - 5) < 1e-6 && c.desv < 1e-6);
+});
+
+test('Círculo: puntos alineados avisan y no calculan', () => {
+  const pts = [{ E: 0, N: 0, nombre: 'A' }, { E: 1, N: 1, nombre: 'B' }, { E: 2, N: 2, nombre: 'C' }];
+  const r = Core.calcular({ tipo: 'circulo', puntos: pts });
+  assert.ok(r.aviso.includes('círculo'));
+  assert.strictEqual(r.area, 0);
 });
 
 console.log('\n' + ok + ' pruebas correctas' + (process.exitCode ? ' (hay fallos)' : ''));

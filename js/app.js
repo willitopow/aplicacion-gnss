@@ -152,7 +152,13 @@
       }
       // Capas de un solo punto (Base, punto suelto) quedan desmarcadas por defecto
       c.incluir = prev ? prev.incluir : c.puntos.length > 1;
-      c.color = COLORES[i % COLORES.length];
+    });
+    // Color por layer: figuras del mismo layer comparten color
+    const colorDeCapa = new Map();
+    estado.capas.forEach(c => {
+      const k = c.layer || c.nombre;
+      if (!colorDeCapa.has(k)) colorDeCapa.set(k, COLORES[colorDeCapa.size % COLORES.length]);
+      c.color = colorDeCapa.get(k);
     });
     $('avisoCroquis').textContent = estado.avisosCroquis.join(' · ');
     estado.vb = null;
@@ -175,16 +181,18 @@
     tb.innerHTML = '';
     estado.capas.forEach((c, i) => {
       const r = Core.calcular(c);
-      const esPoli = c.tipo === 'poligono';
+      const esPoli = c.tipo === 'poligono' || c.tipo === 'circulo';
       const esLinea = c.tipo === 'linea';
       const tr = document.createElement('tr');
       tr.innerHTML =
         '<td><input type="checkbox" class="inc" data-i="' + i + '"' + (c.incluir ? ' checked' : '') + '></td>' +
-        '<td><span class="sw" style="background:' + c.color + '"></span>' + esc(c.nombre) + '</td>' +
+        '<td><span class="sw" style="background:' + c.color + '"></span>' + esc(c.nombre) +
+          (c.layer && c.layer !== c.nombre ? ' <small>(capa ' + esc(c.layer) + ')</small>' : '') + '</td>' +
         '<td><select class="tipo" data-i="' + i + '">' +
           opcionTipo('puntos', 'Puntos', c.tipo) +
           opcionTipo('linea', 'Línea abierta', c.tipo) +
           opcionTipo('poligono', 'Polígono cerrado', c.tipo) +
+          opcionTipo('circulo', 'Círculo (3+ puntos)', c.tipo) +
         '</select></td>' +
         '<td>' + r.n + '</td>' +
         '<td>' + (esPoli ? r.area.toFixed(2) : '—') + '</td>' +
@@ -208,7 +216,8 @@
   function ajustar(ext) {
     const pad = Math.max(ext.w, ext.h) * 0.05 || 1;
     estado.origen = { x: ext.minE, y: ext.maxN };
-    estado.vb = { x: -pad, y: -ext.h - pad, w: ext.w + 2 * pad, h: ext.h + 2 * pad };
+    // Coordenadas locales: x va de 0 a w (este), y va de 0 a h (sur, porque y = maxN - N)
+    estado.vb = { x: -pad, y: -pad, w: ext.w + 2 * pad, h: ext.h + 2 * pad };
     estado.escala0 = estado.vb.w;
   }
 
@@ -238,6 +247,31 @@
           if (etqPts) {
             g += '<text x="' + (sx(p) + u * 2) + '" y="' + (sy(p) - u * 1.5) +
                  '" font-size="' + (u * 5) + '" fill="#222">' + esc(Core.numeroPunto(p)) + '</text>';
+          }
+        });
+        return;
+      }
+
+      if (c.tipo === 'circulo') {
+        Core.figuras(c).figs.forEach(fig => {
+          const ci = Core.ajusteCirculo(fig);
+          if (!ci) return;
+          const ctr = { E: ci.cx, N: ci.cy };
+          g += '<circle cx="' + sx(ctr) + '" cy="' + sy(ctr) + '" r="' + ci.r +
+               '" fill="' + col + '" fill-opacity="0.2" stroke="' + col + '" stroke-width="' + (u * 1.5) + '"/>';
+          fig.forEach(p => {
+            g += '<circle cx="' + sx(p) + '" cy="' + sy(p) + '" r="' + u + '" fill="' + col + '"/>';
+            if (etqPts) {
+              g += '<text x="' + (sx(p) + u * 2) + '" y="' + (sy(p) - u * 1.5) +
+                   '" font-size="' + (u * 4) + '" fill="#222">' + esc(Core.numeroPunto(p)) + '</text>';
+            }
+          });
+          if (etqArea) {
+            const area = Math.PI * ci.r * ci.r;
+            g += '<text x="' + sx(ctr) + '" y="' + sy(ctr) + '" font-size="' + (u * 5) +
+                 '" text-anchor="middle" fill="#222">' + esc(c.nombre) + '</text>';
+            g += '<text x="' + sx(ctr) + '" y="' + (sy(ctr) + u * 6) + '" font-size="' + (u * 4) +
+                 '" text-anchor="middle" fill="#222">' + area.toFixed(1) + ' m²</text>';
           }
         });
         return;
@@ -279,7 +313,7 @@
     act.forEach(c => {
       const r = Core.calcular(c);
       n += r.n;
-      if (c.tipo === 'poligono') { area += r.area; per += r.perimetro; }
+      if (c.tipo === 'poligono' || c.tipo === 'circulo') { area += r.area; per += r.perimetro; }
       if (c.tipo === 'linea') lon += r.longitud;
     });
     $('resumen').innerHTML =

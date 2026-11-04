@@ -145,29 +145,36 @@
       a.orden - b.orden);
   }
 
-  function nombreCapa(codigo, quitarNumero) {
-    let c = limpiar(codigo);
-    if (quitarNumero) c = c.replace(/[\s_\-]*\d+$/, '');   // CASA1 -> CASA
-    return (c || 'SIN_CODIGO').toUpperCase();
+  function nombreCapa(codigo) {
+    return (limpiar(codigo) || 'SIN_CODIGO').toUpperCase();
+  }
+
+  // Nombre del layer (capa DXF) a partir de la figura: ZV1 -> ZV, GR12 -> GR, CASA -> CASA
+  function capaDeFigura(nombre) {
+    const s = String(nombre).replace(/[\s_\-]*\d+$/, '');
+    return s || nombre;
   }
 
   function tipoSugerido(nombre) {
+    if (/fuente/i.test(nombre)) return 'circulo';
     if (POLI_RE.test(nombre)) return 'poligono';
     if (LINEA_RE.test(nombre)) return 'linea';
     return 'puntos';
   }
 
-  // Agrupa puntos por código. Devuelve capas { nombre, tipo, puntos, union }
+  // Cada código es una figura (ZV1, ZV2, C1…). Con la opción "separar" el layer
+  // es el nombre sin número (ZV). Sin ella, cada código es su propio layer.
   function agrupar(puntos, opciones) {
-    const quitar = !!(opciones && opciones.quitarNumero);
+    const separar = !!(opciones && opciones.quitarNumero);
     const mapa = new Map();
     puntos.forEach(p => {
-      const k = nombreCapa(p.codigo, quitar);
+      const k = nombreCapa(p.codigo);
       if (!mapa.has(k)) mapa.set(k, []);
       mapa.get(k).push(p);
     });
     return Array.from(mapa, ([nombre, pts]) => ({
       nombre: nombre,
+      layer: separar ? capaDeFigura(nombre) : nombre,
       tipo: tipoSugerido(nombre),
       puntos: ordenar(pts),
       union: ''
@@ -233,6 +240,36 @@
     return Math.abs(s) / 2;
   }
 
+  // Círculo que mejor se ajusta a los puntos (mínimos cuadrados).
+  // Con 3 puntos no alineados es el círculo exacto que pasa por ellos.
+  function ajusteCirculo(pts) {
+    const n = pts.length;
+    if (n < 3) return null;
+    let mx = 0, my = 0;
+    pts.forEach(p => { mx += p.E; my += p.N; });
+    mx /= n; my /= n;
+    let Suu = 0, Svv = 0, Suv = 0, Suuu = 0, Svvv = 0, Suvv = 0, Svuu = 0;
+    pts.forEach(p => {
+      const u = p.E - mx, v = p.N - my;
+      Suu += u * u; Svv += v * v; Suv += u * v;
+      Suuu += u * u * u; Svvv += v * v * v;
+      Suvv += u * v * v; Svuu += v * u * u;
+    });
+    const D = (Suuu + Suvv) / 2, E = (Svvv + Svuu) / 2;
+    const den = Suu * Svv - Suv * Suv;
+    if (Math.abs(den) < 1e-9) return null;          // puntos alineados
+    const uc = (D * Svv - Suv * E) / den;
+    const vc = (Suu * E - Suv * D) / den;
+    const r = Math.sqrt(uc * uc + vc * vc + (Suu + Svv) / n);
+    const cx = mx + uc, cy = my + vc;
+    let desv = 0;
+    pts.forEach(p => { desv = Math.max(desv, Math.abs(Math.hypot(p.E - cx, p.N - cy) - r)); });
+    return { cx: cx, cy: cy, r: r, desv: desv };
+  }
+
+  // Tolerancia aceptable de desviación de los puntos respecto al círculo
+  function tolerancia(r) { return Math.max(0.05, 0.01 * r); }
+
   // Calcula sobre todas las figuras de la capa
   function calcular(capa) {
     const f = figuras(capa);
@@ -240,6 +277,14 @@
     const r = { n: 0, area: 0, ha: 0, perimetro: 0, longitud: 0, aviso: '' };
     f.figs.forEach(pts => {
       r.n += pts.length;
+      if (capa.tipo === 'circulo') {
+        const c = ajusteCirculo(pts);
+        if (!c) { avisos.push('Un círculo necesita 3 puntos no alineados'); return; }
+        if (c.desv > tolerancia(c.r)) avisos.push('Puntos fuera del círculo (desviación máx. ' + c.desv.toFixed(2) + ' m)');
+        r.area += Math.PI * c.r * c.r;
+        r.perimetro += 2 * Math.PI * c.r;
+        return;
+      }
       if (capa.tipo === 'poligono') {
         if (pts.length < 3) avisos.push('Una figura tiene menos de 3 puntos');
         r.area += areaGauss(pts);
@@ -285,7 +330,9 @@
       }
       const nombre = partes[0].toUpperCase();
       const t = partes[1].toLowerCase();
-      const tipo = t.indexOf('pun') === 0 || t === 'p' ? 'puntos' : t.indexOf('lin') === 0 || t === 'l' ? 'linea' : 'poligono';
+      const tipo = t.indexOf('pun') === 0 || t === 'p' ? 'puntos'
+        : t.indexOf('lin') === 0 || t === 'l' ? 'linea'
+        : t.indexOf('cir') === 0 || t === 'c' ? 'circulo' : 'poligono';
       const union = partes.slice(2).join('|');
       const usados = [];
       union.split(';').forEach(g => {
@@ -295,7 +342,7 @@
           else avisos.push('No existe el punto ' + tok + ' (' + nombre + ')');
         });
       });
-      capas.push({ nombre: nombre, tipo: tipo, puntos: usados, union: union, croquis: true });
+      capas.push({ nombre: nombre, layer: capaDeFigura(nombre), tipo: tipo, puntos: usados, union: union, croquis: true });
     });
     return { capas: capas, avisos: avisos };
   }
@@ -314,7 +361,7 @@
     return nombreFinal;
   }
 
-  // capas: [{ nombre, tipo, puntos, union }] -> texto DXF
+  // capas: [{ nombre, layer, tipo, puntos, union }] -> texto DXF (un layer por nombre común)
   function generarDXF(capas, opciones) {
     const o = Object.assign({ etiquetasPuntos: true, etiquetasArea: true, alturaTexto: 1 }, opciones || {});
     const out = [];
@@ -323,11 +370,14 @@
     const z = p => (p.h === null || p.h === undefined ? 0 : p.h);
 
     const usados = new Set(['0']);
-    const items = capas.map((c, i) => ({
-      capa: c,
-      ly: nombreLayerDXF(c.nombre, usados),
-      color: PALETA[i % PALETA.length]
-    }));
+    const mapaCapa = new Map();   // nombre de layer -> { ly, color }
+    capas.forEach(c => {
+      const clave = c.layer || c.nombre;
+      if (!mapaCapa.has(clave)) {
+        mapaCapa.set(clave, { ly: nombreLayerDXF(clave, usados), color: PALETA[mapaCapa.size % PALETA.length] });
+      }
+    });
+    const items = capas.map(c => ({ capa: c, ly: mapaCapa.get(c.layer || c.nombre).ly }));
 
     const texto = (ly, x, y, s, alt) => {
       par(0, 'TEXT'); par(8, ly); par(10, num(x)); par(20, num(y)); par(30, '0');
@@ -343,10 +393,10 @@
 
     // TABLES (capas)
     par(0, 'SECTION'); par(2, 'TABLES');
-    par(0, 'TABLE'); par(2, 'LAYER'); par(70, items.length + 1);
+    par(0, 'TABLE'); par(2, 'LAYER'); par(70, mapaCapa.size + 1);
     par(0, 'LAYER'); par(2, '0'); par(70, 0); par(62, 7); par(6, 'CONTINUOUS');
-    items.forEach(it => {
-      par(0, 'LAYER'); par(2, it.ly); par(70, 0); par(62, it.color); par(6, 'CONTINUOUS');
+    mapaCapa.forEach(v => {
+      par(0, 'LAYER'); par(2, v.ly); par(70, 0); par(62, v.color); par(6, 'CONTINUOUS');
     });
     par(0, 'ENDTAB');
     par(0, 'ENDSEC');
@@ -360,6 +410,16 @@
         capa.puntos.forEach(p => {
           par(0, 'POINT'); par(8, ly); par(10, num(p.E)); par(20, num(p.N)); par(30, num(z(p)));
           if (o.etiquetasPuntos) texto(ly, p.E + alt * 0.5, p.N + alt * 0.5, numeroPunto(p), alt);
+        });
+        return;
+      }
+
+      if (capa.tipo === 'circulo') {
+        figuras(capa).figs.forEach(fig => {
+          const c = ajusteCirculo(fig);
+          if (!c) return;
+          par(0, 'CIRCLE'); par(8, ly); par(10, num(c.cx)); par(20, num(c.cy)); par(30, '0'); par(40, num(c.r));
+          if (o.etiquetasArea) texto(ly, c.cx, c.cy, capa.nombre + ' ' + (Math.PI * c.r * c.r).toFixed(2) + ' m2', alt);
         });
         return;
       }
@@ -410,7 +470,7 @@
   const API = {
     aNumero, sinAcentos, numeroPunto,
     textoAFilas, libroAFilas, filasAPuntos,
-    agrupar, tipoSugerido, figuras, croquis,
+    agrupar, tipoSugerido, figuras, croquis, ajusteCirculo,
     calcular, extension,
     nombreLayerDXF, generarDXF, generarCSV
   };
