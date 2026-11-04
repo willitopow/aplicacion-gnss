@@ -152,7 +152,13 @@
       }
       // Capas de un solo punto (Base, punto suelto) quedan desmarcadas por defecto
       c.incluir = prev ? prev.incluir : c.puntos.length > 1;
-      c.color = COLORES[i % COLORES.length];
+    });
+    // Color por layer: figuras del mismo layer comparten color
+    const colorDeCapa = new Map();
+    estado.capas.forEach(c => {
+      const k = c.layer || c.nombre;
+      if (!colorDeCapa.has(k)) colorDeCapa.set(k, COLORES[colorDeCapa.size % COLORES.length]);
+      c.color = colorDeCapa.get(k);
     });
     $('avisoCroquis').textContent = estado.avisosCroquis.join(' · ');
     estado.vb = null;
@@ -180,7 +186,8 @@
       const tr = document.createElement('tr');
       tr.innerHTML =
         '<td><input type="checkbox" class="inc" data-i="' + i + '"' + (c.incluir ? ' checked' : '') + '></td>' +
-        '<td><span class="sw" style="background:' + c.color + '"></span>' + esc(c.nombre) + '</td>' +
+        '<td><span class="sw" style="background:' + c.color + '"></span>' + esc(c.nombre) +
+          (c.layer && c.layer !== c.nombre ? ' <small>(capa ' + esc(c.layer) + ')</small>' : '') + '</td>' +
         '<td><select class="tipo" data-i="' + i + '">' +
           opcionTipo('puntos', 'Puntos', c.tipo) +
           opcionTipo('linea', 'Línea abierta', c.tipo) +

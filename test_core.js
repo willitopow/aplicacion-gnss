@@ -58,11 +58,12 @@ test('Orden natural de puntos: PT2 antes que PT10', () => {
   assert.deepStrictEqual(capa.puntos.map(p => p.nombre), ['PT2', 'PT10']);
 });
 
-test('Quitar número del código agrupa CASA1..CASA4 en una sola capa', () => {
-  const pts = ['casa1', 'casa2', 'casa3'].map((c, i) => ({ nombre: 'P' + i, codigo: c, N: i, E: i, orden: i }));
+test('Con separar figuras: ZV1, ZV2 son figuras distintas en el mismo layer ZV', () => {
+  const pts = ['zv1','zv1','zv1','zv2','zv2','zv2'].map((c,i) => ({ nombre: 'P'+i, codigo: c, N: i, E: i, orden: i }));
   const capas = Core.agrupar(pts, { quitarNumero: true });
-  assert.strictEqual(capas.length, 1);
-  assert.strictEqual(capas[0].nombre, 'CASA');
+  assert.strictEqual(capas.length, 2);
+  assert.deepStrictEqual(capas.map(c => c.nombre), ['ZV1', 'ZV2']);
+  assert.ok(capas.every(c => c.layer === 'ZV'));
   assert.strictEqual(capas[0].puntos.length, 3);
 });
 

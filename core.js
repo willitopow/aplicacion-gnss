@@ -145,10 +145,14 @@
       a.orden - b.orden);
   }
 
-  function nombreCapa(codigo, quitarNumero) {
-    let c = limpiar(codigo);
-    if (quitarNumero) c = c.replace(/[\s_\-]*\d+$/, '');   // CASA1 -> CASA
-    return (c || 'SIN_CODIGO').toUpperCase();
+  function nombreCapa(codigo) {
+    return (limpiar(codigo) || 'SIN_CODIGO').toUpperCase();
+  }
+
+  // Nombre del layer (capa DXF) a partir de la figura: ZV1 -> ZV, GR12 -> GR, CASA -> CASA
+  function capaDeFigura(nombre) {
+    const s = String(nombre).replace(/[\s_\-]*\d+$/, '');
+    return s || nombre;
   }
 
   function tipoSugerido(nombre) {
@@ -158,17 +162,19 @@
     return 'puntos';
   }
 
-  // Agrupa puntos por código. Devuelve capas { nombre, tipo, puntos, union }
+  // Cada código es una figura (ZV1, ZV2, C1…). Con la opción "separar" el layer
+  // es el nombre sin número (ZV). Sin ella, cada código es su propio layer.
   function agrupar(puntos, opciones) {
-    const quitar = !!(opciones && opciones.quitarNumero);
+    const separar = !!(opciones && opciones.quitarNumero);
     const mapa = new Map();
     puntos.forEach(p => {
-      const k = nombreCapa(p.codigo, quitar);
+      const k = nombreCapa(p.codigo);
       if (!mapa.has(k)) mapa.set(k, []);
       mapa.get(k).push(p);
     });
     return Array.from(mapa, ([nombre, pts]) => ({
       nombre: nombre,
+      layer: separar ? capaDeFigura(nombre) : nombre,
       tipo: tipoSugerido(nombre),
       puntos: ordenar(pts),
       union: ''
@@ -336,7 +342,7 @@
           else avisos.push('No existe el punto ' + tok + ' (' + nombre + ')');
         });
       });
-      capas.push({ nombre: nombre, tipo: tipo, puntos: usados, union: union, croquis: true });
+      capas.push({ nombre: nombre, layer: capaDeFigura(nombre), tipo: tipo, puntos: usados, union: union, croquis: true });
     });
     return { capas: capas, avisos: avisos };
   }
@@ -355,7 +361,7 @@
     return nombreFinal;
   }
 
-  // capas: [{ nombre, tipo, puntos, union }] -> texto DXF
+  // capas: [{ nombre, layer, tipo, puntos, union }] -> texto DXF (un layer por nombre común)
   function generarDXF(capas, opciones) {
     const o = Object.assign({ etiquetasPuntos: true, etiquetasArea: true, alturaTexto: 1 }, opciones || {});
     const out = [];
@@ -364,11 +370,14 @@
     const z = p => (p.h === null || p.h === undefined ? 0 : p.h);
 
     const usados = new Set(['0']);
-    const items = capas.map((c, i) => ({
-      capa: c,
-      ly: nombreLayerDXF(c.nombre, usados),
-      color: PALETA[i % PALETA.length]
-    }));
+    const mapaCapa = new Map();   // nombre de layer -> { ly, color }
+    capas.forEach(c => {
+      const clave = c.layer || c.nombre;
+      if (!mapaCapa.has(clave)) {
+        mapaCapa.set(clave, { ly: nombreLayerDXF(clave, usados), color: PALETA[mapaCapa.size % PALETA.length] });
+      }
+    });
+    const items = capas.map(c => ({ capa: c, ly: mapaCapa.get(c.layer || c.nombre).ly }));
 
     const texto = (ly, x, y, s, alt) => {
       par(0, 'TEXT'); par(8, ly); par(10, num(x)); par(20, num(y)); par(30, '0');
@@ -384,10 +393,10 @@
 
     // TABLES (capas)
     par(0, 'SECTION'); par(2, 'TABLES');
-    par(0, 'TABLE'); par(2, 'LAYER'); par(70, items.length + 1);
+    par(0, 'TABLE'); par(2, 'LAYER'); par(70, mapaCapa.size + 1);
     par(0, 'LAYER'); par(2, '0'); par(70, 0); par(62, 7); par(6, 'CONTINUOUS');
-    items.forEach(it => {
-      par(0, 'LAYER'); par(2, it.ly); par(70, 0); par(62, it.color); par(6, 'CONTINUOUS');
+    mapaCapa.forEach(v => {
+      par(0, 'LAYER'); par(2, v.ly); par(70, 0); par(62, v.color); par(6, 'CONTINUOUS');
     });
     par(0, 'ENDTAB');
     par(0, 'ENDSEC');
