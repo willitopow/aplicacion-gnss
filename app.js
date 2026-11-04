@@ -1,0 +1,472 @@
+/*!
+ * linderos-gnss · app.js
+ * Interfaz de usuario. Usa core.js (window.Linderos).
+ * Licencia: MIT
+ */
+(function () {
+  'use strict';
+
+  const Core = window.Linderos;
+  const $ = id => document.getElementById(id);
+  const COLORES = ['#e6194b', '#3cb44b', '#4363d8', '#f58231', '#911eb4',
+                   '#42d4f4', '#f032e6', '#9a6324', '#808000', '#000075'];
+
+  const estado = {
+    puntos: [],        // todos los puntos leídos
+    capas: [],         // capas { nombre, tipo, puntos, union, incluir, color }
+    nombreBase: 'proyecto',
+    croquis: '',       // texto del croquis
+    avisosCroquis: [],
+    vb: null,          // viewBox actual del mapa (coordenadas locales)
+    origen: null,      // origen local del mapa: { x: minE, y: maxN }
+    escala0: 1         // ancho inicial de la vista (base para límites de zoom)
+  };
+
+  /* ---------- utilidades ---------- */
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, c =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  }
+
+  function mostrar(texto, error) {
+    const m = $('mensaje');
+    m.textContent = texto;
+    m.className = error ? 'error' : 'ok';
+  }
+
+  function leerTexto(file) {
+    return new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload = () => res(r.result);
+      r.onerror = () => rej(new Error('No se pudo leer el archivo'));
+      r.readAsText(file);
+    });
+  }
+
+  function leerBinario(file) {
+    return new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload = () => res(r.result);
+      r.onerror = () => rej(new Error('No se pudo leer el archivo'));
+      r.readAsArrayBuffer(file);
+    });
+  }
+
+  function cargarScript(src) {
+    return new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = src;
+      s.onload = res;
+      s.onerror = () => rej(new Error('No se pudo cargar ' + src));
+      document.head.appendChild(s);
+    });
+  }
+
+  // Carga SheetJS solo cuando hace falta: primero local (offline), luego CDN.
+  async function obtenerXLSX() {
+    if (window.XLSX) return window.XLSX;
+    try {
+      await cargarScript('libs/xlsx.full.min.js');
+    } catch (e) {
+      await cargarScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+    }
+    if (!window.XLSX) throw new Error('No se pudo cargar el lector de Excel');
+    return window.XLSX;
+  }
+
+  function descargar(nombre, contenido, tipo) {
+    const blob = new Blob([contenido], { type: tipo });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = nombre;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+  }
+
+  function activas() {
+    return estado.capas.filter(c => c.incluir);
+  }
+
+  function puntosDe(capas) {
+    return capas.reduce((acc, c) => acc.concat(c.puntos), []);
+  }
+
+  // Para ajustar la vista se ignoran capas de un solo punto (p. ej. Base_0),
+  // que pueden estar alejadas y dejar el dibujo pequeño.
+  function puntosParaAjustar(act) {
+    const grandes = act.filter(c => c.puntos.length > 1);
+    return puntosDe(grandes.length ? grandes : act);
+  }
+
+  /* ---------- carga de datos ---------- */
+
+  async function cargarArchivo(file) {
+    estado.nombreBase = file.name.replace(/\.[^.]+$/, '');
+    const ext = (file.name.split('.').pop() || '').toLowerCase();
+    mostrar('Leyendo ' + file.name + '...');
+    try {
+      let filas;
+      if (['xls', 'xlsx', 'xlsm'].includes(ext)) {
+        const XLSX = await obtenerXLSX();
+        filas = Core.libroAFilas(XLSX, new Uint8Array(await leerBinario(file)));
+      } else {
+        filas = Core.textoAFilas(await leerTexto(file));
+      }
+      procesar(filas);
+    } catch (e) {
+      mostrar('Error: ' + e.message, true);
+    }
+  }
+
+  function procesar(filas) {
+    const r = Core.filasAPuntos(filas);
+    const nombres = { name: 'Nombre', code: 'Código', N: 'N', E: 'E', h: 'h' };
+    const cols = Object.keys(r.mapa).map(k => nombres[k] + ' (col ' + (r.mapa[k] + 1) + ')').join(', ');
+
+    estado.puntos = r.puntos;
+    estado.capas = [];
+    estado.vb = null;
+    regrupar();
+
+    let txt = r.puntos.length + ' puntos leídos. Columnas: ' + cols + '. Capas: ' + estado.capas.length + '.';
+    if (r.omitidos.length) txt += ' Filas omitidas (sin N/E válidos): ' + r.omitidos.length + '.';
+    mostrar(txt);
+  }
+
+  // Capas por código + figuras del croquis. Conserva tipo, unión e inclusión ya elegidos.
+  function regrupar() {
+    const clave = c => (c.croquis ? 'C:' : 'P:') + c.nombre;
+    const previos = new Map(estado.capas.map(c => [clave(c), c]));
+    const base = Core.agrupar(estado.puntos, { quitarNumero: $('chkQuitar').checked });
+    const cr = Core.croquis(estado.croquis, estado.puntos);
+    estado.avisosCroquis = cr.avisos;
+    estado.capas = base.concat(cr.capas);
+    estado.capas.forEach((c, i) => {
+      const prev = previos.get(clave(c));
+      if (!c.croquis) {
+        c.tipo = prev ? prev.tipo : c.tipo;
+        c.union = prev ? prev.union : '';
+      }
+      // Capas de un solo punto (Base, punto suelto) quedan desmarcadas por defecto
+      c.incluir = prev ? prev.incluir : c.puntos.length > 1;
+      c.color = COLORES[i % COLORES.length];
+    });
+    $('avisoCroquis').textContent = estado.avisosCroquis.join(' · ');
+    estado.vb = null;
+    refrescar();
+  }
+
+  function refrescar() {
+    pintarTabla();
+    pintarMapa();
+  }
+
+  /* ---------- tabla de capas ---------- */
+
+  function opcionTipo(valor, etiqueta, actual) {
+    return '<option value="' + valor + '"' + (valor === actual ? ' selected' : '') + '>' + etiqueta + '</option>';
+  }
+
+  function pintarTabla() {
+    const tb = $('tbody');
+    tb.innerHTML = '';
+    estado.capas.forEach((c, i) => {
+      const r = Core.calcular(c);
+      const esPoli = c.tipo === 'poligono' || c.tipo === 'circulo';
+      const esLinea = c.tipo === 'linea';
+      const tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td><input type="checkbox" class="inc" data-i="' + i + '"' + (c.incluir ? ' checked' : '') + '></td>' +
+        '<td><span class="sw" style="background:' + c.color + '"></span>' + esc(c.nombre) + '</td>' +
+        '<td><select class="tipo" data-i="' + i + '">' +
+          opcionTipo('puntos', 'Puntos', c.tipo) +
+          opcionTipo('linea', 'Línea abierta', c.tipo) +
+          opcionTipo('poligono', 'Polígono cerrado', c.tipo) +
+          opcionTipo('circulo', 'Círculo (3+ puntos)', c.tipo) +
+        '</select></td>' +
+        '<td>' + r.n + '</td>' +
+        '<td>' + (esPoli ? r.area.toFixed(2) : '—') + '</td>' +
+        '<td>' + (esPoli ? r.ha.toFixed(4) : '—') + '</td>' +
+        '<td>' + (esPoli ? r.perimetro.toFixed(2) : esLinea ? r.longitud.toFixed(2) : '—') + '</td>' +
+        '<td><input type="text" class="union" data-i="' + i + '" value="' + esc(c.union || '') +
+          '" placeholder="ej: 1-2-3-4-1"' + (c.tipo === 'puntos' ? ' disabled' : '') + '></td>' +
+        '<td class="aviso">' + esc(r.aviso) + '</td>';
+      tb.appendChild(tr);
+    });
+  }
+
+  /* ---------- mapa (SVG, norte arriba) ---------- */
+
+  function aplicarVB() {
+    const v = estado.vb;
+    $('mapa').setAttribute('viewBox', [v.x, v.y, v.w, v.h].join(' '));
+  }
+
+  // Ajusta la vista para que todo el dibujo quepa de una vez
+  function ajustar(ext) {
+    const pad = Math.max(ext.w, ext.h) * 0.05 || 1;
+    estado.origen = { x: ext.minE, y: ext.maxN };
+    estado.vb = { x: -pad, y: -ext.h - pad, w: ext.w + 2 * pad, h: ext.h + 2 * pad };
+    estado.escala0 = estado.vb.w;
+  }
+
+  function pintarMapa() {
+    const svg = $('mapa');
+    const act = activas();
+    pintarResumen(act);
+
+    const pts = puntosDe(act);
+    if (!pts.length) { svg.innerHTML = ''; return; }
+
+    if (!estado.vb) ajustar(Core.extension(puntosParaAjustar(act)));
+
+    const o = estado.origen;
+    const sx = p => p.E - o.x;
+    const sy = p => -(p.N - o.y);
+    const u = Math.max(estado.vb.w, 1e-6) / 400;   // tamaño relativo de puntos y textos
+    const etqPts = $('chkEtqPts').checked;
+    const etqArea = $('chkEtqArea').checked;
+
+    let g = '';
+    act.forEach(c => {
+      const col = c.color;
+      if (c.tipo === 'puntos') {
+        c.puntos.forEach(p => {
+          g += '<circle cx="' + sx(p) + '" cy="' + sy(p) + '" r="' + (u * 1.5) + '" fill="' + col + '"/>';
+          if (etqPts) {
+            g += '<text x="' + (sx(p) + u * 2) + '" y="' + (sy(p) - u * 1.5) +
+                 '" font-size="' + (u * 5) + '" fill="#222">' + esc(Core.numeroPunto(p)) + '</text>';
+          }
+        });
+        return;
+      }
+
+      if (c.tipo === 'circulo') {
+        Core.figuras(c).figs.forEach(fig => {
+          const ci = Core.ajusteCirculo(fig);
+          if (!ci) return;
+          const ctr = { E: ci.cx, N: ci.cy };
+          g += '<circle cx="' + sx(ctr) + '" cy="' + sy(ctr) + '" r="' + ci.r +
+               '" fill="' + col + '" fill-opacity="0.2" stroke="' + col + '" stroke-width="' + (u * 1.5) + '"/>';
+          fig.forEach(p => {
+            g += '<circle cx="' + sx(p) + '" cy="' + sy(p) + '" r="' + u + '" fill="' + col + '"/>';
+            if (etqPts) {
+              g += '<text x="' + (sx(p) + u * 2) + '" y="' + (sy(p) - u * 1.5) +
+                   '" font-size="' + (u * 4) + '" fill="#222">' + esc(Core.numeroPunto(p)) + '</text>';
+            }
+          });
+          if (etqArea) {
+            const area = Math.PI * ci.r * ci.r;
+            g += '<text x="' + sx(ctr) + '" y="' + sy(ctr) + '" font-size="' + (u * 5) +
+                 '" text-anchor="middle" fill="#222">' + esc(c.nombre) + '</text>';
+            g += '<text x="' + sx(ctr) + '" y="' + (sy(ctr) + u * 6) + '" font-size="' + (u * 4) +
+                 '" text-anchor="middle" fill="#222">' + area.toFixed(1) + ' m²</text>';
+          }
+        });
+        return;
+      }
+
+      Core.figuras(c).figs.forEach(fig => {
+        if (fig.length < 2) return;
+        const cerrado = c.tipo === 'poligono' && fig.length >= 3;
+        const d = fig.map(p => sx(p) + ',' + sy(p)).join(' ');
+        g += cerrado
+          ? '<polygon points="' + d + '" fill="' + col + '" fill-opacity="0.2" stroke="' + col + '" stroke-width="' + (u * 1.5) + '"/>'
+          : '<polyline points="' + d + '" fill="none" stroke="' + col + '" stroke-width="' + (u * 1.5) + '"/>';
+        fig.forEach(p => {
+          g += '<circle cx="' + sx(p) + '" cy="' + sy(p) + '" r="' + u + '" fill="' + col + '"/>';
+          if (etqPts) {
+            g += '<text x="' + (sx(p) + u * 2) + '" y="' + (sy(p) - u * 1.5) +
+                 '" font-size="' + (u * 4) + '" fill="#222">' + esc(Core.numeroPunto(p)) + '</text>';
+          }
+        });
+
+        if (cerrado && etqArea) {
+          const cx = fig.reduce((s, p) => s + sx(p), 0) / fig.length;
+          const cy = fig.reduce((s, p) => s + sy(p), 0) / fig.length;
+          const area = Core.calcular({ tipo: 'poligono', puntos: fig }).area;
+          g += '<text x="' + cx + '" y="' + cy + '" font-size="' + (u * 5) +
+               '" text-anchor="middle" fill="#222">' + esc(c.nombre) + '</text>';
+          g += '<text x="' + cx + '" y="' + (cy + u * 6) + '" font-size="' + (u * 4) +
+               '" text-anchor="middle" fill="#222">' + area.toFixed(1) + ' m²</text>';
+        }
+      });
+    });
+
+    svg.innerHTML = g;
+    aplicarVB();
+  }
+
+  function pintarResumen(act) {
+    let n = 0, area = 0, per = 0, lon = 0;
+    act.forEach(c => {
+      const r = Core.calcular(c);
+      n += r.n;
+      if (c.tipo === 'poligono' || c.tipo === 'circulo') { area += r.area; per += r.perimetro; }
+      if (c.tipo === 'linea') lon += r.longitud;
+    });
+    $('resumen').innerHTML =
+      '<b>Capas incluidas:</b> ' + act.length +
+      ' · <b>Puntos:</b> ' + n +
+      ' · <b>Área polígonos:</b> ' + area.toFixed(2) + ' m² (' + (area / 10000).toFixed(4) + ' ha)' +
+      ' · <b>Perímetros:</b> ' + per.toFixed(2) + ' m' +
+      ' · <b>Longitud líneas:</b> ' + lon.toFixed(2) + ' m';
+  }
+
+  /* ---------- zoom y paneo ---------- */
+
+  function svgPunto(svg, x, y) {
+    const pt = svg.createSVGPoint();
+    pt.x = x; pt.y = y;
+    return pt.matrixTransform(svg.getScreenCTM().inverse());
+  }
+
+  // Acerca (f < 1) o aleja (f > 1) alrededor del punto p, con límites
+  function zoomEn(p, f) {
+    const v = estado.vb;
+    const min = estado.escala0 * 0.02;   // acercamiento máximo
+    const max = estado.escala0 * 20;     // alejamiento máximo
+    let nw = v.w * f;
+    if (nw < min || nw > max) {
+      nw = nw < min ? min : max;
+      f = nw / v.w;
+    }
+    v.x = p.x - (p.x - v.x) * f;
+    v.y = p.y - (p.y - v.y) * f;
+    v.w = nw;
+    v.h *= f;
+  }
+
+  function escalaPx(svg) {
+    const v = estado.vb;
+    return Math.max(v.w / svg.clientWidth, v.h / svg.clientHeight);
+  }
+
+  function iniciarMapa() {
+    const svg = $('mapa');
+
+    // Rueda: suave. Se normaliza según el tipo de desplazamiento; el touchpad
+    // envía muchos eventos pequeños, así que el factor es bajo.
+    svg.addEventListener('wheel', e => {
+      e.preventDefault();
+      if (!estado.vb) return;
+      const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+      zoomEn(svgPunto(svg, e.clientX, e.clientY), Math.exp(dy * 0.0015));
+      aplicarVB();
+    }, { passive: false });
+
+    // Pantalla táctil: un dedo mueve, dos dedos hacen zoom (pinza)
+    const punteros = new Map();
+    let distAnterior = null;
+
+    svg.addEventListener('pointerdown', e => {
+      punteros.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      svg.setPointerCapture(e.pointerId);
+      distAnterior = null;
+    });
+
+    svg.addEventListener('pointermove', e => {
+      if (!punteros.has(e.pointerId) || !estado.vb) return;
+      const prev = punteros.get(e.pointerId);
+      punteros.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+      if (punteros.size === 1) {
+        const k = escalaPx(svg);
+        estado.vb.x -= (e.clientX - prev.x) * k;
+        estado.vb.y -= (e.clientY - prev.y) * k;
+      } else if (punteros.size === 2) {
+        const [a, b] = Array.from(punteros.values());
+        const d = Math.hypot(a.x - b.x, a.y - b.y);
+        if (distAnterior && d > 0) {
+          zoomEn(svgPunto(svg, (a.x + b.x) / 2, (a.y + b.y) / 2), distAnterior / d);
+        }
+        distAnterior = d;
+      }
+      aplicarVB();
+    });
+
+    const soltar = e => {
+      punteros.delete(e.pointerId);
+      distAnterior = null;
+    };
+    svg.addEventListener('pointerup', soltar);
+    svg.addEventListener('pointercancel', soltar);
+  }
+
+  /* ---------- exportación ---------- */
+
+  function exportarDXF() {
+    const act = activas();
+    if (!act.length) return mostrar('Selecciona al menos una capa.', true);
+    const ext = Core.extension(puntosDe(act));
+    if (!ext) return mostrar('No hay puntos para exportar.', true);
+    const alt = Math.max(ext.w, ext.h, 1) / 200;   // altura de texto proporcional al dibujo
+    const txt = Core.generarDXF(act, {
+      etiquetasPuntos: $('chkEtqPts').checked,
+      etiquetasArea: $('chkEtqArea').checked,
+      alturaTexto: alt
+    });
+    descargar(estado.nombreBase + '.dxf', txt, 'application/dxf');
+    mostrar('DXF generado con ' + act.length + ' capas.');
+  }
+
+  function exportarCSV() {
+    const act = activas();
+    if (!act.length) return mostrar('Selecciona al menos una capa.', true);
+    // BOM UTF-8 para que Excel lea bien las tildes
+    descargar(estado.nombreBase + '_resultados.csv', '\uFEFF' + Core.generarCSV(act), 'text/csv;charset=utf-8');
+    mostrar('CSV de resultados generado.');
+  }
+
+  /* ---------- eventos ---------- */
+
+  function iniciar() {
+    $('archivo').addEventListener('change', e => {
+      if (e.target.files && e.target.files[0]) cargarArchivo(e.target.files[0]);
+      e.target.value = '';   // permite volver a cargar el mismo archivo
+    });
+
+    $('btnPegado').addEventListener('click', () => {
+      const texto = $('pegado').value;
+      if (!texto.trim()) return mostrar('Pega primero los datos en el cuadro.', true);
+      estado.nombreBase = 'pegado';
+      try { procesar(Core.textoAFilas(texto)); }
+      catch (e) { mostrar('Error: ' + e.message, true); }
+    });
+
+    $('chkQuitar').addEventListener('change', () => { if (estado.puntos.length) regrupar(); });
+    $('chkEtqPts').addEventListener('change', pintarMapa);
+    $('chkEtqArea').addEventListener('change', pintarMapa);
+    $('btnVista').addEventListener('click', () => { estado.vb = null; pintarMapa(); });
+
+    // Delegación: tipo, orden de unión e inclusión de cada capa
+    $('tbody').addEventListener('change', e => {
+      const i = Number(e.target.getAttribute('data-i'));
+      if (e.target.classList.contains('tipo')) {
+        estado.capas[i].tipo = e.target.value;
+        refrescar();
+      } else if (e.target.classList.contains('union')) {
+        estado.capas[i].union = e.target.value;
+        refrescar();
+      } else if (e.target.classList.contains('inc')) {
+        estado.capas[i].incluir = e.target.checked;
+        pintarMapa();
+      }
+    });
+
+    $('btnCroquis').addEventListener('click', () => {
+      estado.croquis = $('croquis').value;
+      if (estado.puntos.length) regrupar();
+    });
+
+    $('btnDXF').addEventListener('click', exportarDXF);
+    $('btnCSV').addEventListener('click', exportarCSV);
+
+    iniciarMapa();
+  }
+
+  iniciar();
+})();

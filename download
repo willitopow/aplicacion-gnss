@@ -1,0 +1,15 @@
+# Salidas generadas por la conversión
+dwg_salida/
+
+# Datos reales de levantamientos (no subir a un repositorio público)
+datos_reales/
+*.dwg
+
+# Sistema y editores
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Dependencias (solo si se añaden en el futuro)
+node_modules/
