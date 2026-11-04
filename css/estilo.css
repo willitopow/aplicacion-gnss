@@ -124,3 +124,23 @@ button.eq { padding: 6px 10px; font-size: 0.9rem; width: auto; }
 .panel-punto { background: #fff7ed; border: 1px solid #fdba74; border-radius: 8px; padding: 10px; margin-top: 8px; font-size: 0.95rem; }
 .panel-punto[hidden] { display: none; }
 #mapa circle.pt { cursor: pointer; }
+
+/* Panel de punto: flotante sobre la pantalla, siempre visible */
+.panel-punto {
+  position: fixed;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  z-index: 50;
+  max-width: 640px;
+  margin: 0 auto;
+  box-shadow: 0 6px 20px rgba(0,0,0,.25);
+}
+
+/* Sin recuadro azul ni selección de texto al tocar el dibujo */
+#mapa, #mapa * {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
+}
