@@ -13,9 +13,13 @@
 
   const estado = {
     puntos: [],        // todos los puntos leídos
-    capas: [],         // capas agrupadas { nombre, tipo, puntos, incluir, color }
+    capas: [],         // capas { nombre, tipo, puntos, union, incluir, color }
     nombreBase: 'proyecto',
-    vb: null           // viewBox actual del mapa
+    croquis: '',       // texto del croquis
+    avisosCroquis: [],
+    vb: null,          // viewBox actual del mapa (coordenadas locales)
+    origen: null,      // origen local del mapa: { x: minE, y: maxN }
+    escala0: 1         // ancho inicial de la vista (base para límites de zoom)
   };
 
   /* ---------- utilidades ---------- */
@@ -90,6 +94,13 @@
     return capas.reduce((acc, c) => acc.concat(c.puntos), []);
   }
 
+  // Para ajustar la vista se ignoran capas de un solo punto (p. ej. Base_0),
+  // que pueden estar alejadas y dejar el dibujo pequeño.
+  function puntosParaAjustar(act) {
+    const grandes = act.filter(c => c.puntos.length > 1);
+    return puntosDe(grandes.length ? grandes : act);
+  }
+
   /* ---------- carga de datos ---------- */
 
   async function cargarArchivo(file) {
@@ -125,16 +136,25 @@
     mostrar(txt);
   }
 
-  // Agrupa por código y conserva el tipo elegido por el usuario si la capa ya existía
+  // Capas por código + figuras del croquis. Conserva tipo, unión e inclusión ya elegidos.
   function regrupar() {
-    const previos = new Map(estado.capas.map(c => [c.nombre, c]));
-    estado.capas = Core.agrupar(estado.puntos, { quitarNumero: $('chkQuitar').checked });
+    const clave = c => (c.croquis ? 'C:' : 'P:') + c.nombre;
+    const previos = new Map(estado.capas.map(c => [clave(c), c]));
+    const base = Core.agrupar(estado.puntos, { quitarNumero: $('chkQuitar').checked });
+    const cr = Core.croquis(estado.croquis, estado.puntos);
+    estado.avisosCroquis = cr.avisos;
+    estado.capas = base.concat(cr.capas);
     estado.capas.forEach((c, i) => {
-      const prev = previos.get(c.nombre);
-      c.tipo = prev ? prev.tipo : c.tipo;
-      c.incluir = prev ? prev.incluir : true;
+      const prev = previos.get(clave(c));
+      if (!c.croquis) {
+        c.tipo = prev ? prev.tipo : c.tipo;
+        c.union = prev ? prev.union : '';
+      }
+      // Capas de un solo punto (Base, punto suelto) quedan desmarcadas por defecto
+      c.incluir = prev ? prev.incluir : c.puntos.length > 1;
       c.color = COLORES[i % COLORES.length];
     });
+    $('avisoCroquis').textContent = estado.avisosCroquis.join(' · ');
     estado.vb = null;
     refrescar();
   }
@@ -170,6 +190,8 @@
         '<td>' + (esPoli ? r.area.toFixed(2) : '—') + '</td>' +
         '<td>' + (esPoli ? r.ha.toFixed(4) : '—') + '</td>' +
         '<td>' + (esPoli ? r.perimetro.toFixed(2) : esLinea ? r.longitud.toFixed(2) : '—') + '</td>' +
+        '<td><input type="text" class="union" data-i="' + i + '" value="' + esc(c.union || '') +
+          '" placeholder="ej: 1-2-3-4-1"' + (c.tipo === 'puntos' ? ' disabled' : '') + '></td>' +
         '<td class="aviso">' + esc(r.aviso) + '</td>';
       tb.appendChild(tr);
     });
@@ -182,22 +204,27 @@
     $('mapa').setAttribute('viewBox', [v.x, v.y, v.w, v.h].join(' '));
   }
 
+  // Ajusta la vista para que todo el dibujo quepa de una vez
+  function ajustar(ext) {
+    const pad = Math.max(ext.w, ext.h) * 0.05 || 1;
+    estado.origen = { x: ext.minE, y: ext.maxN };
+    estado.vb = { x: -pad, y: -ext.h - pad, w: ext.w + 2 * pad, h: ext.h + 2 * pad };
+    estado.escala0 = estado.vb.w;
+  }
+
   function pintarMapa() {
     const svg = $('mapa');
     const act = activas();
-    const pts = puntosDe(act);
     pintarResumen(act);
 
+    const pts = puntosDe(act);
     if (!pts.length) { svg.innerHTML = ''; return; }
 
-    const ext = Core.extension(pts);
-    if (!estado.vb) {
-      const pad = Math.max(ext.w, ext.h) * 0.05 || 1;
-      estado.vb = { x: -pad, y: -ext.h - pad, w: ext.w + 2 * pad, h: ext.h + 2 * pad };
-    }
-    // Coordenadas locales (restando el origen) para evitar problemas de precisión
-    const sx = p => p.E - ext.minE;
-    const sy = p => -(p.N - ext.maxN);
+    if (!estado.vb) ajustar(Core.extension(puntosParaAjustar(act)));
+
+    const o = estado.origen;
+    const sx = p => p.E - o.x;
+    const sy = p => -(p.N - o.y);
     const u = Math.max(estado.vb.w, 1e-6) / 400;   // tamaño relativo de puntos y textos
     const etqPts = $('chkEtqPts').checked;
     const etqArea = $('chkEtqArea').checked;
@@ -210,31 +237,37 @@
           g += '<circle cx="' + sx(p) + '" cy="' + sy(p) + '" r="' + (u * 1.5) + '" fill="' + col + '"/>';
           if (etqPts) {
             g += '<text x="' + (sx(p) + u * 2) + '" y="' + (sy(p) - u * 1.5) +
-                 '" font-size="' + (u * 5) + '" fill="#222">' + esc(p.nombre) + '</text>';
+                 '" font-size="' + (u * 5) + '" fill="#222">' + esc(Core.numeroPunto(p)) + '</text>';
           }
         });
         return;
       }
-      if (c.puntos.length < 2) return;
 
-      const cerrado = c.tipo === 'poligono' && c.puntos.length >= 3;
-      const d = c.puntos.map(p => sx(p) + ',' + sy(p)).join(' ');
-      g += cerrado
-        ? '<polygon points="' + d + '" fill="' + col + '" fill-opacity="0.2" stroke="' + col + '" stroke-width="' + (u * 1.5) + '"/>'
-        : '<polyline points="' + d + '" fill="none" stroke="' + col + '" stroke-width="' + (u * 1.5) + '"/>';
-      c.puntos.forEach(p => {
-        g += '<circle cx="' + sx(p) + '" cy="' + sy(p) + '" r="' + u + '" fill="' + col + '"/>';
+      Core.figuras(c).figs.forEach(fig => {
+        if (fig.length < 2) return;
+        const cerrado = c.tipo === 'poligono' && fig.length >= 3;
+        const d = fig.map(p => sx(p) + ',' + sy(p)).join(' ');
+        g += cerrado
+          ? '<polygon points="' + d + '" fill="' + col + '" fill-opacity="0.2" stroke="' + col + '" stroke-width="' + (u * 1.5) + '"/>'
+          : '<polyline points="' + d + '" fill="none" stroke="' + col + '" stroke-width="' + (u * 1.5) + '"/>';
+        fig.forEach(p => {
+          g += '<circle cx="' + sx(p) + '" cy="' + sy(p) + '" r="' + u + '" fill="' + col + '"/>';
+          if (etqPts) {
+            g += '<text x="' + (sx(p) + u * 2) + '" y="' + (sy(p) - u * 1.5) +
+                 '" font-size="' + (u * 4) + '" fill="#222">' + esc(Core.numeroPunto(p)) + '</text>';
+          }
+        });
+
+        if (cerrado && etqArea) {
+          const cx = fig.reduce((s, p) => s + sx(p), 0) / fig.length;
+          const cy = fig.reduce((s, p) => s + sy(p), 0) / fig.length;
+          const area = Core.calcular({ tipo: 'poligono', puntos: fig }).area;
+          g += '<text x="' + cx + '" y="' + cy + '" font-size="' + (u * 5) +
+               '" text-anchor="middle" fill="#222">' + esc(c.nombre) + '</text>';
+          g += '<text x="' + cx + '" y="' + (cy + u * 6) + '" font-size="' + (u * 4) +
+               '" text-anchor="middle" fill="#222">' + area.toFixed(1) + ' m²</text>';
+        }
       });
-
-      if (cerrado && etqArea) {
-        const cx = c.puntos.reduce((s, p) => s + sx(p), 0) / c.puntos.length;
-        const cy = c.puntos.reduce((s, p) => s + sy(p), 0) / c.puntos.length;
-        const area = Core.calcular(c).area;
-        g += '<text x="' + cx + '" y="' + cy + '" font-size="' + (u * 5) +
-             '" text-anchor="middle" fill="#222">' + esc(c.nombre) + '</text>';
-        g += '<text x="' + cx + '" y="' + (cy + u * 6) + '" font-size="' + (u * 4) +
-             '" text-anchor="middle" fill="#222">' + area.toFixed(1) + ' m²</text>';
-      }
     });
 
     svg.innerHTML = g;
@@ -257,42 +290,82 @@
       ' · <b>Longitud líneas:</b> ' + lon.toFixed(2) + ' m';
   }
 
-  // Zoom con la rueda y paneo arrastrando (también con el dedo)
+  /* ---------- zoom y paneo ---------- */
+
   function svgPunto(svg, x, y) {
     const pt = svg.createSVGPoint();
     pt.x = x; pt.y = y;
     return pt.matrixTransform(svg.getScreenCTM().inverse());
   }
 
+  // Acerca (f < 1) o aleja (f > 1) alrededor del punto p, con límites
+  function zoomEn(p, f) {
+    const v = estado.vb;
+    const min = estado.escala0 * 0.02;   // acercamiento máximo
+    const max = estado.escala0 * 20;     // alejamiento máximo
+    let nw = v.w * f;
+    if (nw < min || nw > max) {
+      nw = nw < min ? min : max;
+      f = nw / v.w;
+    }
+    v.x = p.x - (p.x - v.x) * f;
+    v.y = p.y - (p.y - v.y) * f;
+    v.w = nw;
+    v.h *= f;
+  }
+
+  function escalaPx(svg) {
+    const v = estado.vb;
+    return Math.max(v.w / svg.clientWidth, v.h / svg.clientHeight);
+  }
+
   function iniciarMapa() {
     const svg = $('mapa');
+
+    // Rueda: suave. Se normaliza según el tipo de desplazamiento; el touchpad
+    // envía muchos eventos pequeños, así que el factor es bajo.
     svg.addEventListener('wheel', e => {
       e.preventDefault();
       if (!estado.vb) return;
-      const f = e.deltaY > 0 ? 1.15 : 1 / 1.15;
-      const p = svgPunto(svg, e.clientX, e.clientY);
-      const v = estado.vb;
-      v.x = p.x - (p.x - v.x) * f;
-      v.y = p.y - (p.y - v.y) * f;
-      v.w *= f;
-      v.h *= f;
+      const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+      zoomEn(svgPunto(svg, e.clientX, e.clientY), Math.exp(dy * 0.0015));
       aplicarVB();
     }, { passive: false });
 
-    let arrastre = null;
+    // Pantalla táctil: un dedo mueve, dos dedos hacen zoom (pinza)
+    const punteros = new Map();
+    let distAnterior = null;
+
     svg.addEventListener('pointerdown', e => {
-      arrastre = { x: e.clientX, y: e.clientY };
+      punteros.set(e.pointerId, { x: e.clientX, y: e.clientY });
       svg.setPointerCapture(e.pointerId);
+      distAnterior = null;
     });
+
     svg.addEventListener('pointermove', e => {
-      if (!arrastre || !estado.vb) return;
-      const k = Math.max(estado.vb.w / svg.clientWidth, estado.vb.h / svg.clientHeight);
-      estado.vb.x -= (e.clientX - arrastre.x) * k;
-      estado.vb.y -= (e.clientY - arrastre.y) * k;
-      arrastre = { x: e.clientX, y: e.clientY };
+      if (!punteros.has(e.pointerId) || !estado.vb) return;
+      const prev = punteros.get(e.pointerId);
+      punteros.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+      if (punteros.size === 1) {
+        const k = escalaPx(svg);
+        estado.vb.x -= (e.clientX - prev.x) * k;
+        estado.vb.y -= (e.clientY - prev.y) * k;
+      } else if (punteros.size === 2) {
+        const [a, b] = Array.from(punteros.values());
+        const d = Math.hypot(a.x - b.x, a.y - b.y);
+        if (distAnterior && d > 0) {
+          zoomEn(svgPunto(svg, (a.x + b.x) / 2, (a.y + b.y) / 2), distAnterior / d);
+        }
+        distAnterior = d;
+      }
       aplicarVB();
     });
-    const soltar = () => { arrastre = null; };
+
+    const soltar = e => {
+      punteros.delete(e.pointerId);
+      distAnterior = null;
+    };
     svg.addEventListener('pointerup', soltar);
     svg.addEventListener('pointercancel', soltar);
   }
@@ -343,16 +416,24 @@
     $('chkEtqArea').addEventListener('change', pintarMapa);
     $('btnVista').addEventListener('click', () => { estado.vb = null; pintarMapa(); });
 
-    // Delegación: tipo de capa e inclusión
+    // Delegación: tipo, orden de unión e inclusión de cada capa
     $('tbody').addEventListener('change', e => {
       const i = Number(e.target.getAttribute('data-i'));
       if (e.target.classList.contains('tipo')) {
         estado.capas[i].tipo = e.target.value;
         refrescar();
+      } else if (e.target.classList.contains('union')) {
+        estado.capas[i].union = e.target.value;
+        refrescar();
       } else if (e.target.classList.contains('inc')) {
         estado.capas[i].incluir = e.target.checked;
         pintarMapa();
       }
+    });
+
+    $('btnCroquis').addEventListener('click', () => {
+      estado.croquis = $('croquis').value;
+      if (estado.puntos.length) regrupar();
     });
 
     $('btnDXF').addEventListener('click', exportarDXF);

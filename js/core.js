@@ -1,7 +1,7 @@
 /*!
  * linderos-gnss · core.js
  * Lógica sin DOM: lectura de TXT / CSV / XLS(X), agrupación por código,
- * cálculo de áreas, perímetros y longitudes, y generación de DXF (R12) y CSV.
+ * orden de unión (según croquis), cálculo de áreas y generación de DXF / CSV.
  * Licencia: MIT
  */
 (function (root) {
@@ -51,6 +51,18 @@
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .replace(/[^\x20-\x7E]/g, '_');
+  }
+
+  // Número del punto para etiquetas y para el orden de unión: PT12 -> "12", Base_0 -> "0"
+  function numeroPunto(p) {
+    const nombre = String(p.nombre || '');
+    const m = nombre.match(/(\d+)\s*$/);
+    return m ? String(Number(m[1])) : nombre;
+  }
+
+  function normalizarNumero(t) {
+    const s = String(t).replace(/^[A-Za-z]+/, '').trim();   // PT12 -> 12
+    return /^\d+$/.test(s) ? String(Number(s)) : s;
   }
 
   /* ---------- lectura ---------- */
@@ -145,7 +157,7 @@
     return 'puntos';
   }
 
-  // Agrupa puntos por código. Devuelve capas { nombre, tipo, puntos (ordenados) }
+  // Agrupa puntos por código. Devuelve capas { nombre, tipo, puntos, union }
   function agrupar(puntos, opciones) {
     const quitar = !!(opciones && opciones.quitarNumero);
     const mapa = new Map();
@@ -157,8 +169,42 @@
     return Array.from(mapa, ([nombre, pts]) => ({
       nombre: nombre,
       tipo: tipoSugerido(nombre),
-      puntos: ordenar(pts)
+      puntos: ordenar(pts),
+      union: ''
     }));
+  }
+
+  /* ---------- orden de unión (croquis) ---------- */
+
+  // Convierte el texto de unión en figuras.
+  //  "1-2-3-4-1"       -> una figura (si es polígono, se cierra)
+  //  "1-2-3; 5-6-7"    -> dos figuras separadas por ";"
+  // Si la capa es "puntos", el orden de unión no se aplica.
+  function figuras(capa) {
+    if (capa.tipo === 'puntos' || !limpiar(capa.union)) {
+      return { figs: [capa.puntos], avisos: [] };
+    }
+    const porNum = new Map();
+    capa.puntos.forEach(p => {
+      const k = normalizarNumero(numeroPunto(p));
+      if (!porNum.has(k)) porNum.set(k, p);
+    });
+
+    const figs = [], avisos = [];
+    String(capa.union).split(';').forEach(grupo => {
+      const tokens = grupo.trim().split(/[\s,\-]+/).filter(Boolean);
+      if (!tokens.length) return;
+      const pts = [];
+      tokens.forEach(t => {
+        const p = porNum.get(normalizarNumero(t));
+        if (p) pts.push(p);
+        else avisos.push('No existe el punto ' + t);
+      });
+      // Si el último punto repite el primero, el polígono ya queda cerrado
+      if (pts.length > 1 && pts[0] === pts[pts.length - 1]) pts.pop();
+      if (pts.length) figs.push(pts);
+    });
+    return { figs: figs, avisos: avisos };
   }
 
   /* ---------- geometría ---------- */
@@ -187,18 +233,24 @@
     return Math.abs(s) / 2;
   }
 
+  // Calcula sobre todas las figuras de la capa
   function calcular(capa) {
-    const pts = capa.puntos;
-    const r = { n: pts.length, area: 0, ha: 0, perimetro: 0, longitud: 0, aviso: '' };
-    if (capa.tipo === 'poligono') {
-      if (pts.length < 3) r.aviso = 'Se necesitan al menos 3 puntos';
-      r.area = areaGauss(pts);
-      r.ha = r.area / 10000;
-      r.perimetro = perimetro(pts, true);
-    } else if (capa.tipo === 'linea') {
-      if (pts.length < 2) r.aviso = 'Se necesitan al menos 2 puntos';
-      r.longitud = perimetro(pts, false);
-    }
+    const f = figuras(capa);
+    const avisos = f.avisos.slice();
+    const r = { n: 0, area: 0, ha: 0, perimetro: 0, longitud: 0, aviso: '' };
+    f.figs.forEach(pts => {
+      r.n += pts.length;
+      if (capa.tipo === 'poligono') {
+        if (pts.length < 3) avisos.push('Una figura tiene menos de 3 puntos');
+        r.area += areaGauss(pts);
+        r.perimetro += perimetro(pts, true);
+      } else if (capa.tipo === 'linea') {
+        if (pts.length < 2) avisos.push('Una línea tiene menos de 2 puntos');
+        r.longitud += perimetro(pts, false);
+      }
+    });
+    r.ha = r.area / 10000;
+    r.aviso = avisos.join('; ');
     return r;
   }
 
@@ -212,6 +264,40 @@
       if (p.N > maxN) maxN = p.N;
     });
     return { minE: minE, maxE: maxE, minN: minN, maxN: maxN, w: maxE - minE, h: maxN - minN };
+  }
+
+  // Croquis: una línea por figura, "NOMBRE | tipo | orden de unión".
+  // Los números pueden pertenecer a cualquier código. Líneas con # se ignoran.
+  function croquis(texto, puntos) {
+    const porNum = new Map();
+    puntos.forEach(p => {
+      const k = normalizarNumero(numeroPunto(p));
+      if (!porNum.has(k)) porNum.set(k, p);
+    });
+    const capas = [], avisos = [];
+    String(texto || '').split(/\r?\n/).forEach(linea => {
+      const l = linea.trim();
+      if (!l || l.charAt(0) === '#') return;
+      const partes = l.split('|').map(x => x.trim());
+      if (partes.length < 3 || !partes[0]) {
+        avisos.push('Línea mal escrita (usa NOMBRE | tipo | orden): ' + l);
+        return;
+      }
+      const nombre = partes[0].toUpperCase();
+      const t = partes[1].toLowerCase();
+      const tipo = t.indexOf('pun') === 0 || t === 'p' ? 'puntos' : t.indexOf('lin') === 0 || t === 'l' ? 'linea' : 'poligono';
+      const union = partes.slice(2).join('|');
+      const usados = [];
+      union.split(';').forEach(g => {
+        g.trim().split(/[\s,\-]+/).filter(Boolean).forEach(tok => {
+          const p = porNum.get(normalizarNumero(tok));
+          if (p) { if (usados.indexOf(p) < 0) usados.push(p); }
+          else avisos.push('No existe el punto ' + tok + ' (' + nombre + ')');
+        });
+      });
+      capas.push({ nombre: nombre, tipo: tipo, puntos: usados, union: union, croquis: true });
+    });
+    return { capas: capas, avisos: avisos };
   }
 
   /* ---------- DXF (AutoCAD R12, ASCII) ---------- */
@@ -228,7 +314,7 @@
     return nombreFinal;
   }
 
-  // capas: [{ nombre, tipo, puntos }] -> texto DXF
+  // capas: [{ nombre, tipo, puntos, union }] -> texto DXF
   function generarDXF(capas, opciones) {
     const o = Object.assign({ etiquetasPuntos: true, etiquetasArea: true, alturaTexto: 1 }, opciones || {});
     const out = [];
@@ -268,33 +354,35 @@
     // ENTITIES
     par(0, 'SECTION'); par(2, 'ENTITIES');
     items.forEach(it => {
-      const capa = it.capa, ly = it.ly, pts = capa.puntos, alt = o.alturaTexto;
+      const capa = it.capa, ly = it.ly, alt = o.alturaTexto;
 
       if (capa.tipo === 'puntos') {
-        pts.forEach(p => {
+        capa.puntos.forEach(p => {
           par(0, 'POINT'); par(8, ly); par(10, num(p.E)); par(20, num(p.N)); par(30, num(z(p)));
-          if (o.etiquetasPuntos) texto(ly, p.E + alt * 0.5, p.N + alt * 0.5, p.nombre, alt);
+          if (o.etiquetasPuntos) texto(ly, p.E + alt * 0.5, p.N + alt * 0.5, numeroPunto(p), alt);
         });
         return;
       }
 
       const cerrado = capa.tipo === 'poligono';
-      if (pts.length < 2 || (cerrado && pts.length < 3)) return;
+      figuras(capa).figs.forEach(fig => {
+        if (fig.length < 2 || (cerrado && fig.length < 3)) return;
 
-      par(0, 'POLYLINE'); par(8, ly); par(66, 1);
-      par(10, '0'); par(20, '0'); par(30, '0');
-      par(70, cerrado ? 1 : 0);
-      pts.forEach(p => {
-        par(0, 'VERTEX'); par(8, ly); par(10, num(p.E)); par(20, num(p.N)); par(30, num(z(p))); par(70, 0);
+        par(0, 'POLYLINE'); par(8, ly); par(66, 1);
+        par(10, '0'); par(20, '0'); par(30, '0');
+        par(70, cerrado ? 1 : 0);
+        fig.forEach(p => {
+          par(0, 'VERTEX'); par(8, ly); par(10, num(p.E)); par(20, num(p.N)); par(30, num(z(p))); par(70, 0);
+        });
+        par(0, 'SEQEND'); par(8, ly);
+
+        if (cerrado && o.etiquetasArea) {
+          const area = calcular({ tipo: 'poligono', puntos: fig }).area;
+          const cx = fig.reduce((s, p) => s + p.E, 0) / fig.length;
+          const cy = fig.reduce((s, p) => s + p.N, 0) / fig.length;
+          texto(ly, cx, cy, capa.nombre + ' ' + area.toFixed(2) + ' m2', alt);
+        }
       });
-      par(0, 'SEQEND'); par(8, ly);
-
-      if (cerrado && o.etiquetasArea) {
-        const r = calcular(capa);
-        const cx = pts.reduce((s, p) => s + p.E, 0) / pts.length;
-        const cy = pts.reduce((s, p) => s + p.N, 0) / pts.length;
-        texto(ly, cx, cy, capa.nombre + ' ' + r.area.toFixed(2) + ' m2', alt);
-      }
     });
 
     par(0, 'ENDSEC');
@@ -320,9 +408,9 @@
   }
 
   const API = {
-    aNumero, sinAcentos,
+    aNumero, sinAcentos, numeroPunto,
     textoAFilas, libroAFilas, filasAPuntos,
-    agrupar, tipoSugerido,
+    agrupar, tipoSugerido, figuras, croquis,
     calcular, extension,
     nombreLayerDXF, generarDXF, generarCSV
   };

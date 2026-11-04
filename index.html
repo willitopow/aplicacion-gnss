@@ -43,13 +43,20 @@
 
   <section>
     <h2>2. Capas</h2>
-    <p class="ayuda">Cada código forma una capa. Elige cómo dibujarla: puntos, línea abierta (cerca, vía) o polígono cerrado (lindero, casa). Los puntos se unen en el orden de su nombre (PT1, PT2, PT3…).</p>
+    <p class="ayuda">Cada código forma una capa. Elige cómo dibujarla: puntos, línea abierta (cerca, vía) o polígono cerrado (lindero, casa). Los puntos se unen según la columna <b>Orden de unión</b>, que sigue el croquis. Escribe los números de los puntos: <code>1-2-3-4-1</code> cierra una casa; usa <code>;</code> para separar figuras distintas dentro de la misma capa (<code>1-2-3; 5-6-7</code>). Si la celda está vacía, se unen en el orden de sus nombres.</p>
+    <details open>
+      <summary>Croquis: unir puntos por número</summary>
+      <p class="ayuda">Una línea por figura: <code>NOMBRE | tipo | orden</code>. Tipo: <code>poligono</code>, <code>linea</code> o <code>puntos</code>. Los números pueden venir de cualquier código. Las líneas que empiezan con # se ignoran.</p>
+      <textarea id="croquis" rows="8" placeholder="FUENTE | poligono | 127-128-129-130-131-132-127"></textarea>
+      <button id="btnCroquis" type="button">Aplicar croquis</button>
+      <div id="avisoCroquis" class="error"></div>
+    </details>
     <div class="scroll">
       <table>
         <thead>
           <tr>
             <th>Incl.</th><th>Capa</th><th>Tipo</th><th>Puntos</th>
-            <th>Área m²</th><th>Ha</th><th>Perím. m</th><th>Aviso</th>
+            <th>Área m²</th><th>Ha</th><th>Perím. m</th><th>Orden de unión</th><th>Aviso</th>
           </tr>
         </thead>
         <tbody id="tbody"></tbody>

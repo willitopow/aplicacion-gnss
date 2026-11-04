@@ -105,3 +105,8 @@ footer { text-align: center; font-size: 0.8rem; color: #6b7280; padding: 16px 0 
   select { min-height: 40px; }
   input[type="checkbox"] { width: 22px; height: 22px; }
 }
+
+/* Campo de orden de unión */
+input.union { width: 150px; padding: 4px 6px; font-size: 0.9rem; }
+input.union:disabled { background: #f3f4f6; color: #9ca3af; }
+td:nth-child(8) { text-align: left; }

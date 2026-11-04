@@ -111,4 +111,40 @@ test('CSV de resultados con cabecera y una fila por capa', () => {
   assert.ok(filas[1].startsWith('CASA,poligono,4,100.000'));
 });
 
+test('Orden de unión: figuras separadas por ; y cierre automático', () => {
+  const pts = [1,2,3,4,5,6,7].map(n => ({ nombre: 'PT' + n, codigo: 'lindero', N: n, E: n * 2, orden: n }));
+  const capa = { tipo: 'poligono', puntos: pts, union: '1-2-3-1; 4-5-6-7-4' };
+  const f = Core.figuras(capa);
+  assert.strictEqual(f.figs.length, 2);
+  assert.deepStrictEqual(f.figs[0].map(Core.numeroPunto), ['1', '2', '3']);
+  assert.deepStrictEqual(f.figs[1].map(Core.numeroPunto), ['4', '5', '6', '7']);
+});
+
+test('Orden de unión: número inexistente genera aviso', () => {
+  const pts = [1,2,3].map(n => ({ nombre: 'PT' + n, codigo: 'casa', N: n, E: n, orden: n }));
+  const r = Core.calcular({ tipo: 'poligono', puntos: pts, union: '1-2-3-9' });
+  assert.ok(r.aviso.includes('9'));
+});
+
+test('Etiqueta muestra solo el número del punto', () => {
+  assert.strictEqual(Core.numeroPunto({ nombre: 'PT12' }), '12');
+  assert.strictEqual(Core.numeroPunto({ nombre: 'Base_0' }), '0');
+});
+
+test('Croquis: une puntos de cualquier código por número', () => {
+  const pts = [127,128,129,130,131,132].map((n,i) => ({ nombre: 'PT'+n, codigo: 'palma', N: n, E: n, orden: i }));
+  const cr = Core.croquis('FUENTE | poligono | 127-128-129-130-131-132-127\n# comentario', pts);
+  assert.strictEqual(cr.capas.length, 1);
+  assert.strictEqual(cr.capas[0].tipo, 'poligono');
+  const r = Core.calcular(cr.capas[0]);
+  assert.strictEqual(r.n, 6);
+  assert.strictEqual(r.aviso, '');
+});
+
+test('Croquis: avisa de números inexistentes y de líneas mal escritas', () => {
+  const pts = [1,2,3].map(n => ({ nombre: 'PT'+n, codigo: 'x', N: n, E: n, orden: n }));
+  const cr = Core.croquis('CASA | poligono | 1-2-3-99\nMAL', pts);
+  assert.strictEqual(cr.avisos.length, 2);
+});
+
 console.log('\n' + ok + ' pruebas correctas' + (process.exitCode ? ' (hay fallos)' : ''));
