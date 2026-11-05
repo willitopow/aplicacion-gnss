@@ -243,4 +243,26 @@ test('Bordes: ninguna curva cruza el borde, para cualquier equidistancia', () =>
   });
 });
 
+test('Curvas suaves: no cruzan el borde y reducen el giro', () => {
+  const pts = [];
+  for (let x = -6; x <= 6; x++) for (let y = -6; y <= 6; y++)
+    pts.push({ E: x + 0.3 * Math.sin(y), N: y, h: Math.hypot(x + 0.3 * Math.sin(y), y) + 0.2 * Math.sin(3 * x) });
+  const cor = [[-2.5, -2.5], [2.5, -2.5], [2.5, 2.5], [-2.5, 2.5]].map(([E, N]) => ({ E: E, N: N, h: E + N }));
+  const dentro = p => Math.abs(p.E) < 2.5 - 1e-3 && Math.abs(p.N) < 2.5 - 1e-3;
+  const fuera = p => Math.abs(p.E) > 2.5 + 1e-3 || Math.abs(p.N) > 2.5 + 1e-3;
+  const c = Core.curvasNivel(pts, 0.5, [{ pts: cor, cerrado: true }], { suave: true });
+  c.curvas.forEach(cv => cv.lineas.forEach(l => {
+    assert.ok(!(l.pts.some(dentro) && l.pts.some(fuera)), 'curva suave cruza el borde');
+  }));
+  const giro = (cv) => { let t = 0, n = 0; cv.curvas.forEach(v => v.lineas.forEach(l => {
+    for (let i = 1; i < l.pts.length - 1; i++) {
+      const p = l.pts[i - 1], q = l.pts[i], r = l.pts[i + 1];
+      let d = Math.abs(Math.atan2(r.N - q.N, r.E - q.E) - Math.atan2(q.N - p.N, q.E - p.E));
+      d = Math.min(d, 2 * Math.PI - d); t += d; n++;
+    } })); return t / n; };
+  const recta = Core.curvasNivel(pts, 0.5, [], { suave: false });
+  const suave = Core.curvasNivel(pts, 0.5, [], { suave: true });
+  assert.ok(giro(suave) < giro(recta));
+});
+
 console.log('\n' + ok + ' pruebas correctas' + (process.exitCode ? ' (hay fallos)' : ''));

@@ -98,11 +98,12 @@
         <button type="button" class="eq" data-eq="0.5">0.5</button>
         <button type="button" class="eq" data-eq="1">1</button>
       </span>
-      <label class="check"><input type="checkbox" id="chkCurvas" checked> Mostrar curvas en el mapa</label>
+      <label class="check"><input type="checkbox" id="chkCurvas"> Mostrar curvas en el mapa</label>
+      <label class="check"><input type="checkbox" id="chkSuave" checked> Curvas suaves</label>
       <button id="btnRestaurar" type="button">Restaurar puntos borrados</button>
       <div class="capas-borrar">
         <label class="check">Capas a borrar (separadas por coma)
-          <input type="text" id="capasBorrar" value="P1, PALMA, FUENTE, KIOSK O, PERGOLA, GRADAS" class="ancho"></label>
+          <input type="text" id="capasBorrar" value="P1, PALMA, PERGOLA, GRADAS, FUENTE, KIOSKO, KIOSK O" class="ancho"></label>
         <button id="btnBorrarCapas" type="button" class="borrar">Borrar estas capas</button>
       </div>
       <button id="btnQuitarFiguras" type="button" class="borrar">Quitar figuras del croquis</button>
@@ -119,7 +120,7 @@
   <section>
     <h2>5. Exportar</h2>
     <div class="opciones">
-      <label class="check"><input type="checkbox" id="chkCurvasDXF" checked> Incluir curvas de nivel</label>
+      <label class="check"><input type="checkbox" id="chkCurvasDXF"> Incluir curvas de nivel</label>
       <button id="btnDXF" type="button" class="primario">Exportar DXF</button>
       <button id="btnCSV" type="button">Exportar resultados CSV</button>
     </div>

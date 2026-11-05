@@ -134,11 +134,17 @@
     estado.borrados = [];
     estado.sel = null;
     estado.croquis = '';          // al importar no quedan figuras del croquis anterior
+    // Capas que se borran al importar (la lista se puede cambiar en la sección 4)
+    const nombresBorrar = $('capasBorrar').value.split(',').map(x => x.trim().toUpperCase()).filter(Boolean);
+    const quitar = estado.puntos.filter(p => nombresBorrar.indexOf(String(p.codigo || '').trim().toUpperCase()) >= 0);
+    estado.borrados = quitar;
+    estado.puntos = estado.puntos.filter(p => quitar.indexOf(p) < 0);
     estado.capas = [];
     estado.vb = null;
     regrupar();
 
     let txt = r.puntos.length + ' puntos leídos. Columnas: ' + cols + '. Capas: ' + estado.capas.length + '.';
+    if (quitar.length) txt += ' Capas borradas al importar: ' + quitar.length + ' puntos (se pueden restaurar).';
     if (r.omitidos.length) txt += ' Filas omitidas (sin N/E válidos): ' + r.omitidos.length + '.';
     mostrar(txt);
   }
@@ -157,8 +163,8 @@
         c.tipo = prev ? prev.tipo : c.tipo;
         c.union = prev ? prev.union : '';
       }
-      // Capas de un solo punto (Base, punto suelto) quedan desmarcadas por defecto
-      c.incluir = prev ? prev.incluir : c.puntos.length > 1;
+      // Todas las capas se dibujan (los puntos se ven); el ajuste de vista ignora las de un solo punto
+      c.incluir = prev ? prev.incluir : true;
     });
     // Color por layer: figuras del mismo layer comparten color
     const colorDeCapa = new Map();
@@ -230,7 +236,7 @@
       $('resumenCurvas').textContent = 'Escribe una equidistancia mayor que 0 (por ejemplo 0.5 o 1).';
       return;
     }
-    estado.curvas = Core.curvasNivel(estado.puntos, eq, bordesDeCapas());
+    estado.curvas = Core.curvasNivel(estado.puntos, eq, bordesDeCapas(), { suave: $('chkSuave').checked });
     const c = estado.curvas;
     if (c.puntos < 3) {
       $('resumenCurvas').textContent = 'Se necesitan al menos 3 puntos con altura para calcular curvas.';
@@ -604,6 +610,7 @@
       refrescar();
     });
     $('chkCurvas').addEventListener('change', pintarMapa);
+    $('chkSuave').addEventListener('change', () => { recalcCurvas(); pintarMapa(); });
 
     document.querySelectorAll('button.eq').forEach(b => b.addEventListener('click', () => {
       $('equi').value = b.getAttribute('data-eq');

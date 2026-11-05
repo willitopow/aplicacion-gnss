@@ -423,14 +423,63 @@
     return false;
   }
 
+  // Cruce estricto: solo cuenta si las dos líneas se cruzan de verdad (no al tocarse en un extremo)
+  function cruzaEstricto(a, b, c, d) {
+    const o = (p, q, r) => (q.E - p.E) * (r.N - p.N) - (q.N - p.N) * (r.E - p.E);
+    const d1 = o(c, d, a), d2 = o(c, d, b), d3 = o(a, b, c), d4 = o(a, b, d);
+    return ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0));
+  }
+
+  // Corte de esquinas (Chaikin): cada vuelta suaviza la línea. Los extremos de una curva abierta se mantienen.
+  function chaikin(pts, cerrada) {
+    const out = [];
+    const mezcla = (A, B) => [
+      { E: 0.75 * A.E + 0.25 * B.E, N: 0.75 * A.N + 0.25 * B.N },
+      { E: 0.25 * A.E + 0.75 * B.E, N: 0.25 * A.N + 0.75 * B.N }
+    ];
+    if (cerrada) {
+      const n = pts.length;
+      for (let i = 0; i < n; i++) out.push(...mezcla(pts[i], pts[(i + 1) % n]));
+      return out;
+    }
+    out.push({ E: pts[0].E, N: pts[0].N });
+    for (let i = 0; i < pts.length - 1; i++) out.push(...mezcla(pts[i], pts[i + 1]));
+    const u = pts[pts.length - 1];
+    out.push({ E: u.E, N: u.N });
+    return out;
+  }
+
+  // Suaviza una curva sin dejar que ninguna vuelta cruce un borde
+  function suavizarLinea(pts, muros, vueltas) {
+    if (pts.length < 3) return pts;
+    const cerrada = Math.hypot(pts[0].E - pts[pts.length - 1].E, pts[0].N - pts[pts.length - 1].N) < 1e-3;
+    let base = cerrada ? pts.slice(0, -1) : pts.slice();
+    let actual = pts;
+    for (let k = 0; k < vueltas; k++) {
+      const nuevo = chaikin(base, cerrada);
+      const seq = cerrada ? nuevo.concat([nuevo[0]]) : nuevo;
+      let choca = false;
+      for (let i = 0; i < seq.length - 1 && !choca; i++) {
+        for (const m of muros) {
+          if (cruzaEstricto(seq[i], seq[i + 1], m[0], m[1])) { choca = true; break; }
+        }
+      }
+      if (choca) break;
+      base = nuevo;
+      actual = seq;
+    }
+    return actual;
+  }
+
   // Curvas de nivel.
   //  puntos:  todos los puntos (con altura h)
   //  bordes:  [{ pts: [punto, ...], cerrado: true/false }]
   // Un borde se interpola entre sus propios puntos (cada 1 m) y actúa como barrera:
   // ningún triángulo cruza el borde, así que las alturas de un lado no se mezclan
   // con las del otro, y las curvas terminan en el borde.
-  function curvasNivel(puntos, equidistancia, bordes) {
+  function curvasNivel(puntos, equidistancia, bordes, opciones) {
     const eq = Number(equidistancia);
+    const o = Object.assign({ suave: false, vueltas: 3 }, opciones || {});
     const pts = puntos.filter(p => p.h !== null && p.h !== undefined && isFinite(p.h));
     const res = { curvas: [], puntos: pts.length, sinAltura: puntos.length - pts.length, hMin: null, hMax: null };
     if (pts.length < 3 || !(eq > 0)) return res;
@@ -560,8 +609,9 @@
         const linea = [s[0], s[1]];
         extender(linea, true);
         extender(linea, false);
-        const mid = linea[Math.floor(linea.length / 2)];
-        lineas.push({ pts: linea, etiqueta: { E: mid.E, N: mid.N } });
+        const suave = o.suave ? suavizarLinea(linea, muros, o.vueltas) : linea;
+        const mid = suave[Math.floor(suave.length / 2)];
+        lineas.push({ pts: suave, etiqueta: { E: mid.E, N: mid.N } });
       });
       res.curvas.push({ nivel: m * eq, lineas: lineas });
     });
@@ -718,7 +768,7 @@
     aNumero, sinAcentos, numeroPunto,
     textoAFilas, libroAFilas, filasAPuntos,
     agrupar, tipoSugerido, figuras, croquis, ajusteCirculo,
-    triangular, curvasNivel, cruza,
+    triangular, curvasNivel, cruza, suavizarLinea,
     calcular, extension,
     nombreLayerDXF, generarDXF, generarCSV
   };
