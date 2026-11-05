@@ -302,6 +302,14 @@
     $('mapa').setAttribute('viewBox', [v.x, v.y, v.w, v.h].join(' '));
   }
 
+  // Redibuja después del zoom o paneo (una vez por cuadro, para que sea fluido)
+  let redibujoPendiente = false;
+  function programarMapa() {
+    if (redibujoPendiente) return;
+    redibujoPendiente = true;
+    requestAnimationFrame(() => { redibujoPendiente = false; pintarMapa(); });
+  }
+
   // Ajusta la vista para que todo el dibujo quepa de una vez
   function ajustar(ext) {
     const pad = Math.max(ext.w, ext.h) * 0.05 || 1;
@@ -324,7 +332,8 @@
     const o = estado.origen;
     const sx = p => p.E - o.x;
     const sy = p => -(p.N - o.y);
-    const u = Math.max(estado.vb.w, 1e-6) / 400;   // tamaño relativo de puntos y textos
+    // Tamaño en pantalla: los puntos y textos mantienen su tamaño al hacer zoom
+    const u = (svg.clientWidth && svg.clientHeight) ? escalaPx(svg) * 3 : Math.max(estado.vb.w, 1e-6) / 400;   // ~3 px por unidad
     const etqPts = $('chkEtqPts').checked;
     const etqArea = $('chkEtqArea').checked;
 
@@ -472,6 +481,7 @@
       const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
       zoomEn(svgPunto(svg, e.clientX, e.clientY), Math.exp(dy * 0.0015));
       aplicarVB();
+      programarMapa();
     }, { passive: false });
 
     // Pantalla táctil: un dedo mueve, dos dedos hacen zoom (pinza)
@@ -504,6 +514,7 @@
         distAnterior = d;
       }
       aplicarVB();
+      programarMapa();
     });
 
     const soltar = e => {
@@ -617,6 +628,20 @@
       estado.croquis = '';          // quita las figuras; los puntos no se tocan
       regrupar();
       mostrar('Figuras quitadas. Los puntos siguen. Para volver a dibujarlas, pulsa Aplicar croquis.');
+    });
+
+    // Borra capas completas (sus puntos pasan a "borrados" y se pueden restaurar)
+    $('btnBorrarCapas').addEventListener('click', () => {
+      const nombres = $('capasBorrar').value.split(',').map(x => x.trim().toUpperCase()).filter(Boolean);
+      if (!nombres.length) return mostrar('Escribe el nombre de las capas a borrar.', true);
+      const quitar = estado.puntos.filter(p => nombres.indexOf(String(p.codigo || '').trim().toUpperCase()) >= 0);
+      if (!quitar.length) return mostrar('No hay puntos en esas capas.', true);
+      estado.borrados = estado.borrados.concat(quitar);
+      estado.puntos = estado.puntos.filter(p => quitar.indexOf(p) < 0);
+      if (estado.sel !== null && quitar.some(p => p.orden === estado.sel)) estado.sel = null;
+      regrupar();
+      mostrarPanel();
+      mostrar(quitar.length + ' puntos de las capas borradas. Quedan ' + estado.puntos.length + '. Restaurar los devuelve.');
     });
 
     $('btnSelCerrar').addEventListener('click', () => {
