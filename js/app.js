@@ -210,6 +210,19 @@
 
   /* ---------- curvas de nivel y alturas ---------- */
 
+  // Bordes del croquis (tipo borde) que se tienen en cuenta al calcular las curvas
+  function bordesDeCapas() {
+    const out = [];
+    estado.capas.forEach(c => {
+      if (!c.incluir || c.tipo !== 'borde') return;
+      Core.figuras(c).figs.forEach(f => out.push({
+        pts: f,
+        cerrado: f.length > 2 && f[0] === f[f.length - 1]
+      }));
+    });
+    return out;
+  }
+
   function recalcCurvas() {
     const eq = estado.equidistancia;
     if (!(eq > 0)) {
@@ -217,7 +230,7 @@
       $('resumenCurvas').textContent = 'Escribe una equidistancia mayor que 0 (por ejemplo 0.5 o 1).';
       return;
     }
-    estado.curvas = Core.curvasNivel(estado.puntos, eq);
+    estado.curvas = Core.curvasNivel(estado.puntos, eq, bordesDeCapas());
     const c = estado.curvas;
     if (c.puntos < 3) {
       $('resumenCurvas').textContent = 'Se necesitan al menos 3 puntos con altura para calcular curvas.';
@@ -316,11 +329,13 @@
     const etqArea = $('chkEtqArea').checked;
 
     let g = '';
+    let hits = '';   // áreas de toque de los puntos (encima de todo)
     act.forEach(c => {
       const col = c.color;
       if (c.tipo === 'puntos') {
         c.puntos.forEach(p => {
-          g += '<circle class="pt" data-o="' + p.orden + '" cx="' + sx(p) + '" cy="' + sy(p) + '" r="' + (u * 1.5) + '" fill="' + col + '"/>';
+          hits += '<circle class="pt" data-o="' + p.orden + '" cx="' + sx(p) + '" cy="' + sy(p) + '" r="' + (u * 6) + '" fill="rgba(0,0,0,0)"/>';
+          g += '<circle cx="' + sx(p) + '" cy="' + sy(p) + '" r="' + (u * 1.5) + '" fill="' + col + '" pointer-events="none"/>';
           if (etqPts) {
             g += '<text x="' + (sx(p) + u * 2) + '" y="' + (sy(p) - u * 1.5) +
                  '" font-size="' + (u * 5) + '" fill="#222">' + esc(Core.numeroPunto(p)) + '</text>';
@@ -397,7 +412,7 @@
              '" text-anchor="middle" fill="#5b3a1a">' + cv.nivel.toFixed(2) + '</text>';
       }));
     }
-    svg.innerHTML = g;
+    svg.innerHTML = g + hits;
     aplicarVB();
   }
 

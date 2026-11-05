@@ -206,4 +206,41 @@ test('DXF con curvas: capas CURVAS y CURVAS_TXT', () => {
   assert.ok(dxf.includes('POLYLINE'));
 });
 
+test('Bordes: ninguna curva cruza un borde cerrado', () => {
+  const pts = [];
+  for (let x = -6; x <= 6; x++) for (let y = -6; y <= 6; y++) pts.push({ E: x, N: y, h: x + y });
+  const cor = [[-2.5, -2.5], [2.5, -2.5], [2.5, 2.5], [-2.5, 2.5]].map(([E, N]) => ({ E: E, N: N, h: E + N }));
+  const c = Core.curvasNivel(pts, 1, [{ pts: cor, cerrado: true }]);
+  const dentro = p => Math.abs(p.E) < 2.5 - 1e-6 && Math.abs(p.N) < 2.5 - 1e-6;
+  const fuera = p => Math.abs(p.E) > 2.5 + 1e-6 || Math.abs(p.N) > 2.5 + 1e-6;
+  let lineas = 0;
+  c.curvas.forEach(cv => cv.lineas.forEach(l => {
+    lineas++;
+    assert.ok(!(l.pts.some(dentro) && l.pts.some(fuera)), 'una curva cruza el borde en nivel ' + cv.nivel);
+  }));
+  assert.ok(lineas > 0);
+});
+
+test('Bordes: la altura interpolada del borde aparece en la curva que lo toca', () => {
+  // Borde abierto entre dos puntos con alturas 10 y 12: la curva de 11 debe tocarlo
+  const pts = [{ E: 0, N: 0, h: 10 }, { E: 4, N: 0, h: 12 }, { E: 0, N: 4, h: 10 }, { E: 4, N: 4, h: 12 }];
+  const borde = [{ E: 0, N: 0, h: 10 }, { E: 4, N: 0, h: 12 }];
+  const c = Core.curvasNivel(pts, 1, [{ pts: borde, cerrado: false }]);
+  assert.ok(c.curvas.length > 0);
+});
+
+test('Bordes: ninguna curva cruza el borde, para cualquier equidistancia', () => {
+  const pts = [];
+  for (let x = -6; x <= 6; x++) for (let y = -6; y <= 6; y++) pts.push({ E: x, N: y, h: x + y });
+  const cor = [[-2.5, -2.5], [2.5, -2.5], [2.5, 2.5], [-2.5, 2.5]].map(([E, N]) => ({ E: E, N: N, h: E + N }));
+  const dentro = p => Math.abs(p.E) < 2.5 - 1e-3 && Math.abs(p.N) < 2.5 - 1e-3;
+  const fuera = p => Math.abs(p.E) > 2.5 + 1e-3 || Math.abs(p.N) > 2.5 + 1e-3;
+  [1, 0.5, 0.33, 0.3, 0.2, 0.1, 0.25, 0.9].forEach(eq => {
+    const c = Core.curvasNivel(pts, eq, [{ pts: cor, cerrado: true }]);
+    c.curvas.forEach(cv => cv.lineas.forEach(l => {
+      assert.ok(!(l.pts.some(dentro) && l.pts.some(fuera)), 'cruce con equidistancia ' + eq);
+    }));
+  });
+});
+
 console.log('\n' + ok + ' pruebas correctas' + (process.exitCode ? ' (hay fallos)' : ''));

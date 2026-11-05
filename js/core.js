@@ -408,10 +408,28 @@
   // Clave de punto para unir segmentos: redondeo a 0.1 mm; el +0 evita -0 frente a 0
   function claveP(p) { return (Math.round(p.E * 1e4) + 0) + ',' + (Math.round(p.N * 1e4) + 0); }
 
-  // Curvas de nivel: triangula los puntos con altura, interpola el cruce de cada
-  // nivel en cada triángulo y une los segmentos en polilíneas.
-  // Devuelve { curvas: [{ nivel, lineas: [{ pts, etiqueta }] }], puntos, sinAltura, hMin, hMax }
-  function curvasNivel(puntos, equidistancia) {
+  // ¿Los segmentos ab y cd se cruzan (también si uno pasa justo por un extremo del otro)?
+  function cruza(a, b, c, d) {
+    const o = (p, q, r) => (q.E - p.E) * (r.N - p.N) - (q.N - p.N) * (r.E - p.E);
+    const enSeg = (p, q, r) =>
+      Math.min(p.E, q.E) - 1e-9 <= r.E && r.E <= Math.max(p.E, q.E) + 1e-9 &&
+      Math.min(p.N, q.N) - 1e-9 <= r.N && r.N <= Math.max(p.N, q.N) + 1e-9;
+    const d1 = o(c, d, a), d2 = o(c, d, b), d3 = o(a, b, c), d4 = o(a, b, d);
+    if (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))) return true;
+    if (d1 === 0 && enSeg(c, d, a)) return true;
+    if (d2 === 0 && enSeg(c, d, b)) return true;
+    if (d3 === 0 && enSeg(a, b, c)) return true;
+    if (d4 === 0 && enSeg(a, b, d)) return true;
+    return false;
+  }
+
+  // Curvas de nivel.
+  //  puntos:  todos los puntos (con altura h)
+  //  bordes:  [{ pts: [punto, ...], cerrado: true/false }]
+  // Un borde se interpola entre sus propios puntos (cada 1 m) y actúa como barrera:
+  // ningún triángulo cruza el borde, así que las alturas de un lado no se mezclan
+  // con las del otro, y las curvas terminan en el borde.
+  function curvasNivel(puntos, equidistancia, bordes) {
     const eq = Number(equidistancia);
     const pts = puntos.filter(p => p.h !== null && p.h !== undefined && isFinite(p.h));
     const res = { curvas: [], puntos: pts.length, sinAltura: puntos.length - pts.length, hMin: null, hMax: null };
@@ -421,30 +439,97 @@
     pts.forEach(p => { hMin = Math.min(hMin, p.h); hMax = Math.max(hMax, p.h); });
     res.hMin = hMin; res.hMax = hMax;
 
-    const porNivel = new Map();   // m (múltiplo de eq) -> [[puntoA, puntoB], ...]
-    triangular(pts).forEach(([i, j, k]) => {
-      const T = [pts[i], pts[j], pts[k]];
-      const I = [i, j, k];
+    // Lista de puntos para la triangulación (incluye los puntos densificados del borde)
+    const todos = pts.slice();
+    const idx = new Map();
+    todos.forEach((p, i) => idx.set(p, i));
+    const indiceDe = p => {
+      if (!idx.has(p)) { idx.set(p, todos.length); todos.push(p); }
+      return idx.get(p);
+    };
+
+    const aristasMuro = new Set();   // "i,j" de aristas que forman parte de un borde
+    const vertMuro = new Set();      // índices de los puntos que forman el borde
+    const muros = [];                // segmentos de borde (para detectar triángulos que lo cruzan)
+    (bordes || []).forEach(b => {
+      const v = b.pts;
+      if (!v || v.length < 2) return;
+      if (v.some(p => !p || p.h === null || p.h === undefined || !isFinite(p.h))) return;  // borde sin alturas: se omite
+      const n = b.cerrado ? v.length : v.length - 1;
+      for (let q = 0; q < n; q++) {
+        const A = v[q], B = v[(q + 1) % v.length];
+        if (A === B) continue;
+        // Cortes exactos: en cada tramo, el punto donde pasa cada curva pedida (múltiplo de la equidistancia)
+        const cortes = [];
+        if (B.h !== A.h) {
+          const h0 = Math.min(A.h, B.h), h1 = Math.max(A.h, B.h);
+          for (let m = Math.ceil(h0 / eq); m * eq <= h1; m++) {
+            const L = m * eq;
+            const t = (L - A.h) / (B.h - A.h);
+            if (t <= 1e-9 || t >= 1 - 1e-9) continue;   // coincide con un vértice (ya existe)
+            cortes.push({ t: t, h: L });
+          }
+          cortes.sort((x, y) => x.t - y.t);
+        }
+        const secuencia = cortes
+          .map(c => ({ E: A.E + c.t * (B.E - A.E), N: A.N + c.t * (B.N - A.N), h: c.h }))
+          .concat([B]);
+        let anterior = indiceDe(A);
+        secuencia.forEach(obj => {
+          const actual = indiceDe(obj);
+          aristasMuro.add(Math.min(anterior, actual) + ',' + Math.max(anterior, actual));
+          vertMuro.add(anterior); vertMuro.add(actual);
+          muros.push([todos[anterior], todos[actual]]);
+          anterior = actual;
+        });
+      }
+    });
+
+    // Triángulos que no cruzan ningún borde
+    const tris = triangular(todos).filter(([i, j, k]) => {
+      const T = [i, j, k];
+      for (let e = 0; e < 3; e++) {
+        const a = T[e], b = T[(e + 1) % 3];
+        const clave = a < b ? a + ',' + b : b + ',' + a;
+        if (aristasMuro.has(clave)) continue;          // arista del borde: permitida (el borde termina la curva)
+        const ta = todos[a], tb = todos[b];
+        for (const m of muros) {
+          // Aristas que comparten un vértice con el borde no cuentan como cruce
+          if (m[0] === ta || m[0] === tb || m[1] === ta || m[1] === tb) continue;
+          if (cruza(ta, tb, m[0], m[1])) return false;
+        }
+      }
+      return true;
+    });
+
+    const porNivel = new Map();   // m (múltiplo de eq) -> [[cruce, cruce], ...]
+    tris.forEach((I, t) => {
+      const T = I.map(i => todos[i]);
       const tmin = Math.min(T[0].h, T[1].h, T[2].h);
       const tmax = Math.max(T[0].h, T[1].h, T[2].h);
       for (let m = Math.ceil(tmin / eq); m * eq <= tmax; m++) {
-        // Nivel desplazado 1e-7 veces la equidistancia: ningún vértice queda exactamente sobre la curva
+        // Nivel desplazado 1e-7 veces la equidistancia: ningún vértice queda justo sobre la curva
         const L = m * eq + eq * 1e-7;
         const cruces = [];
         for (let e = 0; e < 3; e++) {
-          // Siempre del vértice de menor índice al de mayor: así dos triángulos
-          // vecinos calculan exactamente el mismo punto de cruce.
           const f = (e + 1) % 3;
-          const a = I[e] < I[f] ? T[e] : T[f];
-          const b = I[e] < I[f] ? T[f] : T[e];
+          const lo = I[e] < I[f] ? e : f, hi = I[e] < I[f] ? f : e;
+          const a = T[lo], b = T[hi];
           let ha = a.h - L, hb = b.h - L;
           if ((ha < 0) !== (hb < 0)) {
-            const t = ha / (ha - hb);
-            cruces.push({ E: a.E + t * (b.E - a.E), N: a.N + t * (b.N - a.N) });
+            const tt = ha / (ha - hb);
+            const pt = { E: a.E + tt * (b.E - a.E), N: a.N + tt * (b.N - a.N) };
+            const clave = I[lo] < I[hi] ? I[lo] + ',' + I[hi] : I[hi] + ',' + I[lo];
+            // En un borde, cada lado tiene su propia clave: la curva termina allí.
+            // Cruces justo en un vértice del borde también se separan por lado.
+            const enBorde = aristasMuro.has(clave) ||
+              (vertMuro.has(I[lo]) && tt < 1e-3) || (vertMuro.has(I[hi]) && tt > 1 - 1e-3);
+            pt.k = enBorde ? 'M' + t + '_' + e : claveP(pt);
+            cruces.push(pt);
           }
         }
-        // Descarta segmentos de longitud cero (vértice justo sobre el nivel)
-        if (cruces.length === 2 && claveP(cruces[0]) !== claveP(cruces[1])) {
+        if (cruces.length === 2 && cruces[0].k !== cruces[1].k &&
+            Math.hypot(cruces[0].E - cruces[1].E, cruces[0].N - cruces[1].N) > 1e-9) {
           if (!porNivel.has(m)) porNivel.set(m, []);
           porNivel.get(m).push(cruces);
         }
@@ -452,19 +537,16 @@
     });
 
     porNivel.forEach((segs, m) => {
-      // Clave de unión: redondeo a 0.1 mm; el +0 evita que -0 y 0 den claves distintas
-      const clave = claveP;
       const adj = new Map();
       segs.forEach((s, i) => s.forEach((p, end) => {
-        const k = clave(p);
-        if (!adj.has(k)) adj.set(k, []);
-        adj.get(k).push({ i: i, end: end });
+        if (!adj.has(p.k)) adj.set(p.k, []);
+        adj.get(p.k).push({ i: i, end: end });
       }));
       const usado = segs.map(() => false);
       const extender = (linea, alFinal) => {
         for (;;) {
           const p = alFinal ? linea[linea.length - 1] : linea[0];
-          const cand = (adj.get(clave(p)) || []).find(x => !usado[x.i]);
+          const cand = (adj.get(p.k) || []).find(x => !usado[x.i]);
           if (!cand) break;
           usado[cand.i] = true;
           const otro = segs[cand.i][cand.end === 0 ? 1 : 0];
@@ -636,7 +718,7 @@
     aNumero, sinAcentos, numeroPunto,
     textoAFilas, libroAFilas, filasAPuntos,
     agrupar, tipoSugerido, figuras, croquis, ajusteCirculo,
-    triangular, curvasNivel,
+    triangular, curvasNivel, cruza,
     calcular, extension,
     nombreLayerDXF, generarDXF, generarCSV
   };
