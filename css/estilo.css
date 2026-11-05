@@ -144,3 +144,7 @@ button.eq { padding: 6px 10px; font-size: 0.9rem; width: auto; }
   -webkit-tap-highlight-color: transparent;
   outline: none;
 }
+
+/* La página no se mueve cuando arrastras el plano */
+html, body { overscroll-behavior: none; }
+#mapa { touch-action: none; overscroll-behavior: contain; }
