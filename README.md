@@ -49,7 +49,7 @@ Para pasar archivos del controlador al PC: copia el `.csv` o `.dxf` por cable US
 Al importar, cada código aparece solo como **puntos**. Las figuras se arman en el croquis, con una línea por figura:
 
 ```
-NOMBRE | tipo | orden
+NOMBRE / tipo / orden
 ```
 
 - `poligono`: cerrado (un lindero, una casa). Repite el primer número al final.

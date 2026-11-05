@@ -46,8 +46,8 @@
     <p class="ayuda">Cada código forma una capa. Elige cómo dibujarla: puntos, línea abierta (cerca, vía), polígono cerrado (lindero, casa) o círculo (fuente, con 3 o más puntos). Los puntos se unen según la columna <b>Orden de unión</b>, que sigue el croquis. Escribe los números de los puntos: <code>1-2-3-4-1</code> cierra una casa; usa <code>;</code> para separar figuras distintas dentro de la misma capa (<code>1-2-3; 5-6-7</code>). Si la celda está vacía, se unen en el orden de sus nombres.</p>
     <details open>
       <summary>Croquis: unir puntos por número</summary>
-      <p class="ayuda">Una línea por figura: <code>NOMBRE | tipo | orden</code>. Tipo: <code>poligono</code>, <code>circulo</code>, <code>linea</code> o <code>puntos</code>. Los números pueden venir de cualquier código. Las líneas que empiezan con # se ignoran.</p>
-      <textarea id="croquis" rows="8" placeholder="FUENTE | poligono | 127-128-129-130-131-132-127"></textarea>
+      <p class="ayuda">Una línea por figura: <code>NOMBRE / tipo / orden</code>. Tipo: <code>poligono</code>, <code>circulo</code>, <code>linea</code> o <code>puntos</code>. Los números pueden venir de cualquier código. Las líneas que empiezan con # se ignoran.</p>
+      <textarea id="croquis" rows="8" placeholder="FUENTE / circulo / 127-128-129-130-131-132"></textarea>
       <button id="btnCroquis" type="button">Aplicar croquis</button>
       <div id="avisoCroquis" class="error"></div>
     </details>
@@ -98,7 +98,7 @@
         <button type="button" class="eq" data-eq="0.5">0.5</button>
         <button type="button" class="eq" data-eq="1">1</button>
       </span>
-      <label class="check"><input type="checkbox" id="chkCurvas"> Mostrar curvas en el mapa</label>
+      <label class="check"><input type="checkbox" id="chkCurvas" checked> Mostrar curvas en el mapa</label>
       <button id="btnRestaurar" type="button">Restaurar puntos borrados</button>
       <button id="btnQuitarFiguras" type="button" class="borrar">Quitar figuras del croquis</button>
     </div>
@@ -114,7 +114,7 @@
   <section>
     <h2>5. Exportar</h2>
     <div class="opciones">
-      <label class="check"><input type="checkbox" id="chkCurvasDXF"> Incluir curvas de nivel</label>
+      <label class="check"><input type="checkbox" id="chkCurvasDXF" checked> Incluir curvas de nivel</label>
       <button id="btnDXF" type="button" class="primario">Exportar DXF</button>
       <button id="btnCSV" type="button">Exportar resultados CSV</button>
     </div>

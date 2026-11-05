@@ -311,7 +311,7 @@
     return { minE: minE, maxE: maxE, minN: minN, maxN: maxN, w: maxE - minE, h: maxN - minN };
   }
 
-  // Croquis: una línea por figura, "NOMBRE | tipo | orden de unión".
+  // Croquis: una línea por figura, "NOMBRE / tipo / orden de unión" (también acepta |).
   // Los números pueden pertenecer a cualquier código. Líneas con # se ignoran.
   function croquis(texto, puntos) {
     const porNum = new Map();
@@ -323,7 +323,7 @@
     String(texto || '').split(/\r?\n/).forEach(linea => {
       const l = linea.trim();
       if (!l || l.charAt(0) === '#') return;
-      const partes = l.split('|').map(x => x.trim());
+      const partes = l.split(/[\/|]/).map(x => x.trim());
       if (partes.length < 3 || !partes[0]) {
         avisos.push('Línea mal escrita (usa NOMBRE | tipo | orden): ' + l);
         return;
@@ -334,7 +334,7 @@
         : t.indexOf('lin') === 0 || t === 'l' ? 'linea'
         : t.indexOf('cir') === 0 || t === 'c' ? 'circulo'
         : t.indexOf('bor') === 0 || t === 'b' ? 'borde' : 'poligono';
-      const union = partes.slice(2).join('|');
+      const union = partes.slice(2).join('/');
       const usados = [];
       union.split(';').forEach(g => {
         g.trim().split(/[\s,\-]+/).filter(Boolean).forEach(tok => {

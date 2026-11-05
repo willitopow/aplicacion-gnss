@@ -334,7 +334,7 @@
       const col = c.color;
       if (c.tipo === 'puntos') {
         c.puntos.forEach(p => {
-          hits += '<circle class="pt" data-o="' + p.orden + '" cx="' + sx(p) + '" cy="' + sy(p) + '" r="' + (u * 6) + '" fill="rgba(0,0,0,0)"/>';
+          hits += '<circle class="pt" data-o="' + p.orden + '" cx="' + sx(p) + '" cy="' + sy(p) + '" r="' + (u * 6) + '" fill="rgba(0,0,0,0)" pointer-events="all"/>';
           g += '<circle cx="' + sx(p) + '" cy="' + sy(p) + '" r="' + (u * 1.5) + '" fill="' + col + '" pointer-events="none"/>';
           if (etqPts) {
             g += '<text x="' + (sx(p) + u * 2) + '" y="' + (sy(p) - u * 1.5) +
@@ -508,8 +508,13 @@
 
     const soltar = e => {
       if (toque && toque.pid === e.pointerId && Math.hypot(e.clientX - toque.x, e.clientY - toque.y) < 6) {
-        const id = toque.obj && toque.obj.getAttribute ? toque.obj.getAttribute('data-o') : null;
-        if (id !== null) seleccionar(Number(id));
+        // Busca el punto que está bajo el dedo o el cursor al soltar (no depende de la captura)
+        const bajo = document.elementFromPoint(e.clientX, e.clientY);
+        const id = bajo && bajo.getAttribute ? bajo.getAttribute('data-o') : null;
+        if (id !== null && bajo.classList.contains('pt')) {
+          seleccionar(Number(id));
+          mostrar('Punto ' + Core.numeroPunto(estado.puntos.find(x => x.orden === Number(id)) || {}) + ' seleccionado. Edítalo abajo.');
+        }
       }
       toque = null;
       punteros.delete(e.pointerId);
