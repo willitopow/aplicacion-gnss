@@ -148,3 +148,8 @@ button.eq { padding: 6px 10px; font-size: 0.9rem; width: auto; }
 /* La página no se mueve cuando arrastras el plano */
 html, body { overscroll-behavior: none; }
 #mapa { touch-action: none; overscroll-behavior: contain; }
+
+/* En computadora el plano usa más altura, así el dibujo ocupa más espacio */
+@media (min-width: 700px) {
+  #mapa { height: 78vh; min-height: 480px; }
+}

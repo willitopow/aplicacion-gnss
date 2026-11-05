@@ -133,6 +133,7 @@
     estado.puntos = r.puntos;
     estado.borrados = [];
     estado.sel = null;
+    estado.croquis = '';          // al importar no quedan figuras del croquis anterior
     estado.capas = [];
     estado.vb = null;
     regrupar();
@@ -591,16 +592,11 @@
       if (estado.sel !== null) borrarPunto(estado.sel);
     });
     // Quita las figuras de ejemplo (van a "borrados", se pueden restaurar)
-    $('btnQuitarEjemplo').addEventListener('click', () => {
-      const nombres = ['FUENTE', 'KIOSK O', 'PERGOLA', 'GRADAS'];
-      const quitar = estado.puntos.filter(p => nombres.indexOf(String(p.codigo || '').trim().toUpperCase()) >= 0);
-      if (!quitar.length) return mostrar('No hay figuras de ejemplo en este archivo.', true);
-      estado.borrados = estado.borrados.concat(quitar);
-      estado.puntos = estado.puntos.filter(p => quitar.indexOf(p) < 0);
-      if (estado.sel !== null && quitar.some(p => p.orden === estado.sel)) estado.sel = null;
+    $('btnQuitarFiguras').addEventListener('click', () => {
+      if (!estado.croquis.trim()) return mostrar('No hay figuras del croquis dibujadas.', true);
+      estado.croquis = '';          // quita las figuras; los puntos no se tocan
       regrupar();
-      mostrarPanel();
-      mostrar(quitar.length + ' puntos de las figuras de ejemplo quitados. Puedes restaurarlos con el botón de restaurar.');
+      mostrar('Figuras quitadas. Los puntos siguen. Para volver a dibujarlas, pulsa Aplicar croquis.');
     });
 
     $('btnSelCerrar').addEventListener('click', () => {
