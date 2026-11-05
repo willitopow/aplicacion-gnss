@@ -187,6 +187,7 @@
     if (estado.sel === orden) estado.sel = null;
     regrupar();
     mostrarPanel();
+    mostrar('Punto ' + Core.numeroPunto(p) + ' borrado. Quedan ' + estado.puntos.length + ' puntos.');
   }
 
   function seleccionar(orden) {
@@ -256,7 +257,7 @@
     estado.capas.forEach((c, i) => {
       const r = Core.calcular(c);
       const esPoli = c.tipo === 'poligono' || c.tipo === 'circulo';
-      const esLinea = c.tipo === 'linea';
+      const esLinea = c.tipo === 'linea' || c.tipo === 'borde';
       const tr = document.createElement('tr');
       tr.innerHTML =
         '<td><input type="checkbox" class="inc" data-i="' + i + '"' + (c.incluir ? ' checked' : '') + '></td>' +
@@ -265,6 +266,7 @@
         '<td><select class="tipo" data-i="' + i + '">' +
           opcionTipo('puntos', 'Puntos', c.tipo) +
           opcionTipo('linea', 'Línea abierta', c.tipo) +
+          opcionTipo('borde', 'Borde (barrera)', c.tipo) +
           opcionTipo('poligono', 'Polígono cerrado', c.tipo) +
           opcionTipo('circulo', 'Círculo (3+ puntos)', c.tipo) +
         '</select></td>' +
@@ -357,7 +359,8 @@
         const d = fig.map(p => sx(p) + ',' + sy(p)).join(' ');
         g += cerrado
           ? '<polygon points="' + d + '" fill="' + col + '" fill-opacity="0.2" stroke="' + col + '" stroke-width="' + (u * 1.5) + '"/>'
-          : '<polyline points="' + d + '" fill="none" stroke="' + col + '" stroke-width="' + (u * 1.5) + '"/>';
+          : '<polyline points="' + d + '" fill="none" stroke="' + col + '" stroke-width="' + (u * 1.5) +
+          '" stroke-dasharray="' + (c.tipo === 'borde' ? (u * 4) + ' ' + (u * 2) : 'none') + '"/>';
         fig.forEach(p => {
           g += '<circle class="pt" data-o="' + p.orden + '" cx="' + sx(p) + '" cy="' + sy(p) + '" r="' + u + '" fill="' + col + '"/>';
           if (etqPts) {
@@ -403,7 +406,7 @@
       const r = Core.calcular(c);
       n += r.n;
       if (c.tipo === 'poligono' || c.tipo === 'circulo') { area += r.area; per += r.perimetro; }
-      if (c.tipo === 'linea') lon += r.longitud;
+      if (c.tipo === 'linea' || c.tipo === 'borde') lon += r.longitud;
     });
     $('resumen').innerHTML =
       '<b>Capas incluidas:</b> ' + act.length +

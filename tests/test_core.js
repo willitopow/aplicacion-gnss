@@ -19,7 +19,7 @@ test('CSV con cabecera estilo APKSURV (Nombre,Código,N,E,h) y BOM', () => {
   const capas = Core.agrupar(r.puntos);
   const casa = capas.find(c => c.nombre === 'CASA');
   assert.ok(casa, 'debe existir la capa CASA');
-  assert.strictEqual(casa.tipo, 'poligono');
+  assert.strictEqual(casa.tipo, 'puntos');   // al importar, los códigos son puntos; las figuras van en el croquis
   assert.deepStrictEqual(casa.puntos.map(p => p.nombre), ['CASA1', 'CASA2', 'CASA3', 'CASA4']);
 });
 

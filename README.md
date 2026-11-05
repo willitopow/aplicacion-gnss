@@ -44,6 +44,20 @@ Para pasar archivos del controlador al PC: copia el `.csv` o `.dxf` por cable US
 
 **Actualizaciones:** al subir cambios a GitHub, la app se actualiza sola en el siguiente uso (con **Ctrl + F5** en PC si el navegador conserva una copia).
 
+## Croquis: figuras y bordes
+
+Al importar, cada código aparece solo como **puntos**. Las figuras se arman en el croquis, con una línea por figura:
+
+```
+NOMBRE | tipo | orden
+```
+
+- `poligono`: cerrado (un lindero, una casa). Repite el primer número al final.
+- `circulo`: con 3 o más puntos (fuente, árbol grande).
+- `linea`: abierta (cerca, vía, gradas).
+- `borde`: barrera punteada (un hueco, una caída). Se calcula su longitud.
+- `puntos`: solo los puntos.
+
 ## Curvas de nivel
 
 En la sección **4. Curvas de nivel y alturas**:

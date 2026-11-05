@@ -175,7 +175,7 @@
     return Array.from(mapa, ([nombre, pts]) => ({
       nombre: nombre,
       layer: separar ? capaDeFigura(nombre) : nombre,
-      tipo: tipoSugerido(nombre),
+      tipo: 'puntos',
       puntos: ordenar(pts),
       union: ''
     }));
@@ -208,7 +208,7 @@
         else avisos.push('No existe el punto ' + t);
       });
       // Si el último punto repite el primero, el polígono ya queda cerrado
-      if (pts.length > 1 && pts[0] === pts[pts.length - 1]) pts.pop();
+      if (capa.tipo === 'poligono' && pts.length > 1 && pts[0] === pts[pts.length - 1]) pts.pop();
       if (pts.length) figs.push(pts);
     });
     return { figs: figs, avisos: avisos };
@@ -289,7 +289,7 @@
         if (pts.length < 3) avisos.push('Una figura tiene menos de 3 puntos');
         r.area += areaGauss(pts);
         r.perimetro += perimetro(pts, true);
-      } else if (capa.tipo === 'linea') {
+      } else if (capa.tipo === 'linea' || capa.tipo === 'borde') {
         if (pts.length < 2) avisos.push('Una línea tiene menos de 2 puntos');
         r.longitud += perimetro(pts, false);
       }
@@ -332,7 +332,8 @@
       const t = partes[1].toLowerCase();
       const tipo = t.indexOf('pun') === 0 || t === 'p' ? 'puntos'
         : t.indexOf('lin') === 0 || t === 'l' ? 'linea'
-        : t.indexOf('cir') === 0 || t === 'c' ? 'circulo' : 'poligono';
+        : t.indexOf('cir') === 0 || t === 'c' ? 'circulo'
+        : t.indexOf('bor') === 0 || t === 'b' ? 'borde' : 'poligono';
       const union = partes.slice(2).join('|');
       const usados = [];
       union.split(';').forEach(g => {
