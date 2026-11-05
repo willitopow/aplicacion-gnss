@@ -9,10 +9,10 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Linderos">
-<link rel="manifest" href="manifest.webmanifest?v=7">
+<link rel="manifest" href="manifest.webmanifest?v=21">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-<link rel="stylesheet" href="css/estilo.css?v=7">
+<link rel="stylesheet" href="css/estilo.css?v=21">
 </head>
 <body>
 
@@ -100,6 +100,7 @@
       </span>
       <label class="check"><input type="checkbox" id="chkCurvas"> Mostrar curvas en el mapa</label>
       <label class="check"><input type="checkbox" id="chkSuave" checked> Curvas suaves</label>
+      <label class="check"><input type="checkbox" id="chkAlturas" checked> Altura en cada punto</label>
       <button id="btnRestaurar" type="button">Restaurar puntos borrados</button>
       <div class="capas-borrar">
         <label class="check">Capas a borrar (separadas por coma)
@@ -138,8 +139,8 @@
   <p>Código abierto · Licencia MIT · Funciona sin conexión después de la primera carga</p>
 </footer>
 
-<script src="js/core.js?v=7"></script>
-<script src="js/app.js?v=7"></script>
+<script src="js/core.js?v=21"></script>
+<script src="js/app.js?v=21"></script>
 <script>
   // Registro del service worker (requiere https o localhost)
   if ('serviceWorker' in navigator) {

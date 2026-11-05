@@ -255,7 +255,7 @@
     estado.puntos.forEach(p => {
       const tr = document.createElement('tr');
       tr.innerHTML =
-        '<td>' + esc(Core.numeroPunto(p)) + '</td>' +
+        '<td>' + esc(etiquetaPunto(p)) + '</td>' +
         '<td>' + p.E.toFixed(2) + '</td>' +
         '<td>' + p.N.toFixed(2) + '</td>' +
         '<td><input type="text" class="altura" inputmode="decimal" data-o="' + p.orden + '" value="' +
@@ -353,7 +353,7 @@
           g += '<circle cx="' + sx(p) + '" cy="' + sy(p) + '" r="' + (u * 1.5) + '" fill="' + col + '" pointer-events="none"/>';
           if (etqPts) {
             g += '<text x="' + (sx(p) + u * 2) + '" y="' + (sy(p) - u * 1.5) +
-                 '" font-size="' + (u * 5) + '" fill="#222">' + esc(Core.numeroPunto(p)) + '</text>';
+                 '" font-size="' + (u * 5) + '" fill="#222">' + esc(etiquetaPunto(p)) + '</text>';
           }
         });
         return;
@@ -370,7 +370,7 @@
             g += '<circle class="pt" data-o="' + p.orden + '" cx="' + sx(p) + '" cy="' + sy(p) + '" r="' + u + '" fill="' + col + '"/>';
             if (etqPts) {
               g += '<text x="' + (sx(p) + u * 2) + '" y="' + (sy(p) - u * 1.5) +
-                   '" font-size="' + (u * 4) + '" fill="#222">' + esc(Core.numeroPunto(p)) + '</text>';
+                   '" font-size="' + (u * 4) + '" fill="#222">' + esc(etiquetaPunto(p)) + '</text>';
             }
           });
           if (etqArea) {
@@ -396,7 +396,7 @@
           g += '<circle class="pt" data-o="' + p.orden + '" cx="' + sx(p) + '" cy="' + sy(p) + '" r="' + u + '" fill="' + col + '"/>';
           if (etqPts) {
             g += '<text x="' + (sx(p) + u * 2) + '" y="' + (sy(p) - u * 1.5) +
-                 '" font-size="' + (u * 4) + '" fill="#222">' + esc(Core.numeroPunto(p)) + '</text>';
+                 '" font-size="' + (u * 4) + '" fill="#222">' + esc(etiquetaPunto(p)) + '</text>';
           }
         });
 
@@ -429,6 +429,12 @@
     }
     svg.innerHTML = g + hits;
     aplicarVB();
+  }
+
+  // Etiqueta de un punto: número, y si está activado, su altura (ej. "12 · 997.53")
+  function etiquetaPunto(p) {
+    const num = Core.numeroPunto(p);
+    return ($('chkAlturas').checked && p.h !== null && p.h !== undefined) ? num + ' · ' + p.h.toFixed(2) : num;
   }
 
   function pintarResumen(act) {
@@ -611,6 +617,7 @@
     });
     $('chkCurvas').addEventListener('change', pintarMapa);
     $('chkSuave').addEventListener('change', () => { recalcCurvas(); pintarMapa(); });
+    $('chkAlturas').addEventListener('change', pintarMapa);
 
     document.querySelectorAll('button.eq').forEach(b => b.addEventListener('click', () => {
       $('equi').value = b.getAttribute('data-eq');
