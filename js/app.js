@@ -134,17 +134,11 @@
     estado.borrados = [];
     estado.sel = null;
     estado.croquis = '';          // al importar no quedan figuras del croquis anterior
-    // Capas que se borran al importar (la lista se puede cambiar en la sección 4)
-    const nombresBorrar = $('capasBorrar').value.split(',').map(x => x.trim().toUpperCase()).filter(Boolean);
-    const quitar = estado.puntos.filter(p => nombresBorrar.indexOf(String(p.codigo || '').trim().toUpperCase()) >= 0);
-    estado.borrados = quitar;
-    estado.puntos = estado.puntos.filter(p => quitar.indexOf(p) < 0);
     estado.capas = [];
     estado.vb = null;
     regrupar();
 
     let txt = r.puntos.length + ' puntos leídos. Columnas: ' + cols + '. Capas: ' + estado.capas.length + '.';
-    if (quitar.length) txt += ' Capas borradas al importar: ' + quitar.length + ' puntos (se pueden restaurar).';
     if (r.omitidos.length) txt += ' Filas omitidas (sin N/E válidos): ' + r.omitidos.length + '.';
     mostrar(txt);
   }
@@ -642,20 +636,6 @@
       estado.croquis = '';          // quita las figuras; los puntos no se tocan
       regrupar();
       mostrar('Figuras quitadas. Los puntos siguen. Para volver a dibujarlas, pulsa Aplicar croquis.');
-    });
-
-    // Borra capas completas (sus puntos pasan a "borrados" y se pueden restaurar)
-    $('btnBorrarCapas').addEventListener('click', () => {
-      const nombres = $('capasBorrar').value.split(',').map(x => x.trim().toUpperCase()).filter(Boolean);
-      if (!nombres.length) return mostrar('Escribe el nombre de las capas a borrar.', true);
-      const quitar = estado.puntos.filter(p => nombres.indexOf(String(p.codigo || '').trim().toUpperCase()) >= 0);
-      if (!quitar.length) return mostrar('No hay puntos en esas capas.', true);
-      estado.borrados = estado.borrados.concat(quitar);
-      estado.puntos = estado.puntos.filter(p => quitar.indexOf(p) < 0);
-      if (estado.sel !== null && quitar.some(p => p.orden === estado.sel)) estado.sel = null;
-      regrupar();
-      mostrarPanel();
-      mostrar(quitar.length + ' puntos de las capas borradas. Quedan ' + estado.puntos.length + '. Restaurar los devuelve.');
     });
 
     $('btnSelCerrar').addEventListener('click', () => {

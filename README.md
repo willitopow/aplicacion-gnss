@@ -60,7 +60,6 @@ NOMBRE / tipo / orden
 
 ## Curvas de nivel
 
-- **Al importar:** las capas P1, PALMA, PERGOLA, GRADAS, FUENTE y KIOSKO se borran del proyecto (la lista se puede cambiar en la sección 4). Los puntos quedan en *Restaurar puntos borrados*.
 - **Curvas suaves:** las curvas se suavizan para verse como trazos continuos. Ninguna vuelta del suavizado cruza un borde.
 - Las curvas no aparecen hasta que marcas **Mostrar curvas en el mapa**.
 

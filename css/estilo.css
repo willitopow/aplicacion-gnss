@@ -154,5 +154,3 @@ html, body { overscroll-behavior: none; }
   #mapa { height: 78vh; min-height: 480px; }
 }
 
-.capas-borrar { width: 100%; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-input.ancho { width: 320px; max-width: 100%; padding: 4px 6px; font-size: 0.9rem; }
