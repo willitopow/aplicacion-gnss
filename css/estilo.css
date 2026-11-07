@@ -154,3 +154,7 @@ html, body { overscroll-behavior: none; }
   #mapa { height: 78vh; min-height: 480px; }
 }
 
+
+/* Casillas de curvas: una debajo de otra, visibles en celular */
+.casillas-curvas { display: flex; flex-direction: column; gap: 8px; width: 100%; margin: 4px 0; }
+.casillas-curvas .check { margin: 0; font-size: 1rem; }

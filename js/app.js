@@ -682,6 +682,12 @@
       if (estado.puntos.length) regrupar();
     });
 
+    $('btnFormato').addEventListener('click', () => {
+      if (!estado.puntos.length) return mostrar('No hay puntos para descargar.', true);
+      descargar(estado.nombreBase + '_autocad.csv', Core.aFormatoAutocad(estado.puntos), 'text/csv;charset=utf-8');
+      mostrar('Archivo en formato AutoCAD: ' + estado.puntos.length + ' puntos.');
+    });
+
     $('btnDXF').addEventListener('click', exportarDXF);
     $('btnCSV').addEventListener('click', exportarCSV);
 

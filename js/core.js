@@ -98,6 +98,50 @@
     return null;
   }
 
+  // Archivo sin cabecera: detecta qué es cada columna por su contenido.
+  //  - columna numérica entera y primera  -> número / nombre del punto
+  //  - numéricas grandes (>1000)          -> coordenadas: la primera es el Norte, la segunda el Este
+  //  - numérica pequeña                   -> altura
+  //  - texto                              -> descripción (código)
+  // Sirve para: Nombre,Código,N,E,h  |  Número,N,E,h,Código  |  Nombre,N,E,h  |  etc.
+  function detectarSinCabecera(filas) {
+    const ncol = Math.max.apply(null, filas.map(f => f.length));
+    const estad = [];
+    for (let c = 0; c < ncol; c++) {
+      let num = 0, tot = 0, suma = 0, enteros = 0;
+      filas.forEach(f => {
+        const v = limpiar(f[c]);
+        if (v === '') return;
+        tot++;
+        const x = aNumero(f[c]);
+        if (isFinite(x)) { num++; suma += Math.abs(x); if (Number.isInteger(x)) enteros++; }
+      });
+      estad.push({
+        numerica: tot > 0 && num / tot > 0.9,
+        media: num ? suma / num : 0,
+        entera: tot > 0 && enteros === tot
+      });
+    }
+    const mapa = {};
+    // Columna 0 entera -> número del punto (no es coordenada)
+    let inicio = 0;
+    if (estad[0].numerica && estad[0].entera) { mapa.name = 0; inicio = 1; }
+    const coords = [], alturas = [], textos = [];
+    for (let c = inicio; c < ncol; c++) {
+      const e = estad[c];
+      if (e.numerica && e.media > 1000) coords.push(c);
+      else if (e.numerica) alturas.push(c);
+      else textos.push(c);
+    }
+    if (coords.length < 2) return Object.assign({}, ORDEN_DEFECTO);   // no se pudo detectar: formato de APKSURV
+    mapa.N = coords[0];
+    mapa.E = coords[1];
+    if (alturas.length) mapa.h = alturas[0];
+    if (mapa.name === undefined && textos.length) { mapa.name = textos[0]; textos.shift(); }
+    if (textos.length) mapa.code = textos[0];
+    return mapa;
+  }
+
   // Filas -> puntos { nombre, codigo, N, E, h }
   function filasAPuntos(filas) {
     filas = filas.filter(f => f && f.some(c => limpiar(c) !== ''));
@@ -110,7 +154,7 @@
       tipos.forEach((t, i) => { if (t && mapa[t] === undefined) mapa[t] = i; });
       inicio = 1;
     } else {
-      mapa = Object.assign({}, ORDEN_DEFECTO);
+      mapa = detectarSinCabecera(filas);
     }
     if (mapa.N === undefined || mapa.E === undefined) {
       throw new Error('No encuentro las columnas N (norte) y E (este).');
@@ -747,6 +791,25 @@
     return out.join('\r\n') + '\r\n';
   }
 
+  /* ---------- formato de puntos para AutoCAD (número, Norte, Este, altura, descripción) ---------- */
+
+  // Número del punto para el formato: si el nombre es numérico se usa; si no, el orden
+  function numeroParaFormato(p) {
+    const m = String(p.nombre || '').match(/^\s*(\d+)\s*$/);
+    return m ? String(Number(m[1])) : String(p.orden + 1);
+  }
+
+  // Puntos ordenados por número y en el formato que pide AutoCAD al importar
+  function aFormatoAutocad(puntos) {
+    const ordenados = puntos.slice().sort((a, b) => Number(numeroParaFormato(a)) - Number(numeroParaFormato(b)));
+    const lineas = ordenados.map(p => {
+      const alt = (p.h === null || p.h === undefined) ? '' : Number(p.h).toFixed(3);
+      const desc = String(p.codigo || '').replace(/[,;\r\n]/g, ' ').replace(/\s+/g, ' ').trim();
+      return [numeroParaFormato(p), Number(p.N).toFixed(3), Number(p.E).toFixed(3), alt, desc].join(',');
+    });
+    return lineas.join('\r\n') + '\r\n';
+  }
+
   /* ---------- CSV de resultados ---------- */
 
   function campoCSV(v) {
@@ -770,7 +833,7 @@
     agrupar, tipoSugerido, figuras, croquis, ajusteCirculo,
     triangular, curvasNivel, cruza, suavizarLinea,
     calcular, extension,
-    nombreLayerDXF, generarDXF, generarCSV
+    nombreLayerDXF, generarDXF, generarCSV, aFormatoAutocad
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = API;

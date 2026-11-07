@@ -265,4 +265,42 @@ test('Curvas suaves: no cruzan el borde y reducen el giro', () => {
   assert.ok(giro(suave) < giro(recta));
 });
 
+test('Sin cabecera: formato Número,N,E,h,Código se lee bien', () => {
+  const r = Core.filasAPuntos(Core.textoAFilas('1,868022.866,1058917.907,992.08,edificio\n2,868011.761,1058927.591,991.94,palma\n'));
+  assert.deepStrictEqual(r.mapa, { name: 0, N: 1, E: 2, h: 3, code: 4 });
+  assert.ok(Math.abs(r.puntos[0].N - 868022.866) < 1e-6);
+  assert.ok(Math.abs(r.puntos[0].E - 1058917.907) < 1e-6);
+  assert.strictEqual(r.puntos[0].codigo, 'edificio');
+});
+
+test('Formato AutoCAD: exporta número,N,E,altura,descripción y vuelve a leerse igual', () => {
+  const pts = [
+    { orden: 0, nombre: '2', codigo: 'palma', N: 868011.5, E: 1058927.25, h: 992.0412 },
+    { orden: 1, nombre: '1', codigo: 'edificio, norte', N: 868022.75, E: 1058917.5, h: null }
+  ];
+  const txt = Core.aFormatoAutocad(pts);
+  const lineas = txt.trim().split('\r\n');
+  assert.strictEqual(lineas[0], '1,868022.750,1058917.500,,edificio norte');   // ordenado por número, sin altura
+  assert.strictEqual(lineas[1], '2,868011.500,1058927.250,992.041,palma');
+  const r = Core.filasAPuntos(Core.textoAFilas(txt));
+  assert.strictEqual(r.puntos.length, 2);
+  assert.ok(Math.abs(r.puntos[1].h - 992.041) < 1e-6);
+});
+
+test('Cualquier formato sin cabecera se convierte al mismo formato (número, N, E, altura, descripción)', () => {
+  const casos = [
+    '1,868022.866,1058917.907,992.081,edificio\n2,868011.761,1058927.592,991.941,palma',
+    '1,edificio,868022.866,1058917.907,992.081\n2,palma,868011.761,1058927.592,991.941',
+    '1;868022,866;1058917,907;992,081;edificio\n2;868011,761;1058927,592;991,941;palma',
+    '1 868022.866 1058917.907 992.081 edificio\n2 868011.761 1058927.592 991.941 palma'
+  ];
+  casos.forEach(t => {
+    const r = Core.filasAPuntos(Core.textoAFilas(t));
+    assert.ok(Math.abs(r.puntos[0].N - 868022.866) < 1e-6, 'N en ' + t);
+    assert.ok(Math.abs(r.puntos[0].E - 1058917.907) < 1e-6, 'E en ' + t);
+    assert.ok(Math.abs(r.puntos[0].h - 992.081) < 1e-6, 'h en ' + t);
+    assert.strictEqual(r.puntos[0].codigo, 'edificio');
+  });
+});
+
 console.log('\n' + ok + ' pruebas correctas' + (process.exitCode ? ' (hay fallos)' : ''));

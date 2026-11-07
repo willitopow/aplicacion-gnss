@@ -9,10 +9,10 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Linderos">
-<link rel="manifest" href="manifest.webmanifest?v=22">
+<link rel="manifest" href="manifest.webmanifest?v=27">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-<link rel="stylesheet" href="css/estilo.css?v=22">
+<link rel="stylesheet" href="css/estilo.css?v=27">
 </head>
 <body>
 
@@ -39,6 +39,8 @@
       Cada código es una figura con su área; el número se quita para el layer (ZV1, ZV2 → capa ZV)
     </label>
     <div id="mensaje" class="ok"></div>
+    <p class="ayuda">Puedes cargar el archivo tal como lo exporta el receptor (con o sin cabecera). La app lo ordena y lo trabaja en el formato de AutoCAD: número, Norte, Este, altura, descripción.</p>
+    <div class="opciones"><button id="btnFormato" type="button">Descargar en formato AutoCAD</button></div>
   </section>
 
   <section>
@@ -98,9 +100,11 @@
         <button type="button" class="eq" data-eq="0.5">0.5</button>
         <button type="button" class="eq" data-eq="1">1</button>
       </span>
-      <label class="check"><input type="checkbox" id="chkCurvas"> Mostrar curvas en el mapa</label>
-      <label class="check"><input type="checkbox" id="chkSuave" checked> Curvas suaves</label>
-      <label class="check"><input type="checkbox" id="chkAlturas" checked> Altura en cada punto</label>
+      <div class="casillas-curvas">
+        <label class="check"><input type="checkbox" id="chkCurvas"> Mostrar curvas en el mapa</label>
+        <label class="check"><input type="checkbox" id="chkSuave" checked> Curvas suaves</label>
+        <label class="check"><input type="checkbox" id="chkAlturas" checked> Altura en cada punto</label>
+      </div>
       <button id="btnRestaurar" type="button">Restaurar puntos borrados</button>
       <button id="btnQuitarFiguras" type="button" class="borrar">Quitar figuras del croquis</button>
     </div>
@@ -134,8 +138,8 @@
   <p>Código abierto · Licencia MIT · Funciona sin conexión después de la primera carga</p>
 </footer>
 
-<script src="js/core.js?v=22"></script>
-<script src="js/app.js?v=22"></script>
+<script src="js/core.js?v=27"></script>
+<script src="js/app.js?v=27"></script>
 <script>
   // Registro del service worker (requiere https o localhost)
   if ('serviceWorker' in navigator) {
