@@ -134,6 +134,7 @@
     estado.borrados = [];
     estado.sel = null;
     estado.croquis = '';          // al importar no quedan figuras del croquis anterior
+    $('croquis').value = '';      // y el cuadro del croquis se vacía (para no volver a aplicar figuras viejas)
     estado.capas = [];
     estado.vb = null;
     regrupar();
@@ -360,12 +361,10 @@
           const ctr = { E: ci.cx, N: ci.cy };
           g += '<circle cx="' + sx(ctr) + '" cy="' + sy(ctr) + '" r="' + ci.r +
                '" fill="' + col + '" fill-opacity="0.2" stroke="' + col + '" stroke-width="' + (u * 1.5) + '"/>';
+          // Los vértices de la figura no se dibujan ni llevan número: el punto ya se ve en su capa.
+          // Solo quedan como área de toque invisible para poder seleccionarlos.
           fig.forEach(p => {
-            g += '<circle class="pt" data-o="' + p.orden + '" cx="' + sx(p) + '" cy="' + sy(p) + '" r="' + u + '" fill="' + col + '"/>';
-            if (etqPts) {
-              g += '<text x="' + (sx(p) + u * 2) + '" y="' + (sy(p) - u * 1.5) +
-                   '" font-size="' + (u * 4) + '" fill="#222">' + esc(etiquetaPunto(p)) + '</text>';
-            }
+            hits += '<circle class="pt" data-o="' + p.orden + '" cx="' + sx(p) + '" cy="' + sy(p) + '" r="' + (u * 6) + '" fill="rgba(0,0,0,0)" pointer-events="all"/>';
           });
           if (etqArea) {
             const area = Math.PI * ci.r * ci.r;
@@ -386,12 +385,9 @@
           ? '<polygon points="' + d + '" fill="' + col + '" fill-opacity="0.2" stroke="' + col + '" stroke-width="' + (u * 1.5) + '"/>'
           : '<polyline points="' + d + '" fill="none" stroke="' + col + '" stroke-width="' + (u * 1.5) +
           '" stroke-dasharray="' + (c.tipo === 'borde' ? (u * 4) + ' ' + (u * 2) : 'none') + '"/>';
+        // Vértices sin dibujo ni número (ver arriba): solo área de toque invisible
         fig.forEach(p => {
-          g += '<circle class="pt" data-o="' + p.orden + '" cx="' + sx(p) + '" cy="' + sy(p) + '" r="' + u + '" fill="' + col + '"/>';
-          if (etqPts) {
-            g += '<text x="' + (sx(p) + u * 2) + '" y="' + (sy(p) - u * 1.5) +
-                 '" font-size="' + (u * 4) + '" fill="#222">' + esc(etiquetaPunto(p)) + '</text>';
-          }
+          hits += '<circle class="pt" data-o="' + p.orden + '" cx="' + sx(p) + '" cy="' + sy(p) + '" r="' + (u * 6) + '" fill="rgba(0,0,0,0)" pointer-events="all"/>';
         });
 
         if (cerrado && etqArea) {
