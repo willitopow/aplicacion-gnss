@@ -231,6 +231,31 @@
   //  "1-2-3-4-1"       -> una figura (si es polígono, se cierra)
   //  "1-2-3; 5-6-7"    -> dos figuras separadas por ";"
   // Si la capa es "puntos", el orden de unión no se aplica.
+  // Arco: curva suave que pasa por los puntos en orden (Catmull-Rom).
+  // Si la lista se cierra (repite el primer número), la curva vuelve al inicio.
+  function muestrearArco(pts, cerrada) {
+    const n = pts.length;
+    if (n < 2) return pts;
+    const k = 12;
+    const P = i => cerrada ? pts[((i % n) + n) % n] : pts[Math.max(0, Math.min(n - 1, i))];
+    const mix = (a, b, c, d, t) => 0.5 * ((2 * b) + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t * t + (-a + 3 * b - 3 * c + d) * t * t * t);
+    const out = [];
+    const seg = cerrada ? n : n - 1;
+    for (let q = 0; q < seg; q++) {
+      const p0 = P(q - 1), p1 = P(q), p2 = P(q + 1), p3 = P(q + 2);
+      for (let j = 0; j < k; j++) {
+        const t = j / k;
+        const h = (p1.h !== null && p1.h !== undefined && p2.h !== null && p2.h !== undefined) ? p1.h + (p2.h - p1.h) * t : null;
+        out.push({ E: mix(p0.E, p1.E, p2.E, p3.E, t), N: mix(p0.N, p1.N, p2.N, p3.N, t), h: h });
+      }
+    }
+    const fin = cerrada ? pts[0] : pts[n - 1];
+    out.push({ E: fin.E, N: fin.N, h: fin.h });
+    out.origen = pts;
+    out.cerrada = cerrada;
+    return out;
+  }
+
   function figuras(capa) {
     if (capa.tipo === 'puntos' || !limpiar(capa.union)) {
       return { figs: [capa.puntos], avisos: [] };
@@ -252,7 +277,11 @@
         else avisos.push('No existe el punto ' + t);
       });
       // Si el último punto repite el primero, el polígono ya queda cerrado
-      if (capa.tipo === 'poligono' && pts.length > 1 && pts[0] === pts[pts.length - 1]) pts.pop();
+      const cerrada = (capa.tipo === 'polilinea' || capa.tipo === 'poligono' || capa.tipo === 'arco') &&
+        pts.length > 1 && pts[0] === pts[pts.length - 1];
+      if (cerrada) pts.pop();
+      pts.cerrada = cerrada;
+      if (capa.tipo === 'arco') { if (pts.length) figs.push(muestrearArco(pts, cerrada)); return; }
       if (pts.length) figs.push(pts);
     });
     return { figs: figs, avisos: avisos };
@@ -320,7 +349,7 @@
     const avisos = f.avisos.slice();
     const r = { n: 0, area: 0, ha: 0, perimetro: 0, longitud: 0, aviso: '' };
     f.figs.forEach(pts => {
-      r.n += pts.length;
+      r.n += (pts.origen || pts).length;
       if (capa.tipo === 'circulo') {
         const c = ajusteCirculo(pts);
         if (!c) { avisos.push('Un círculo necesita 3 puntos no alineados'); return; }
@@ -329,10 +358,13 @@
         r.perimetro += 2 * Math.PI * c.r;
         return;
       }
-      if (capa.tipo === 'poligono') {
+      if (capa.tipo === 'poligono' || (capa.tipo === 'polilinea' && pts.cerrada)) {
         if (pts.length < 3) avisos.push('Una figura tiene menos de 3 puntos');
         r.area += areaGauss(pts);
         r.perimetro += perimetro(pts, true);
+      } else if (capa.tipo === 'polilinea' || capa.tipo === 'arco') {
+        if (pts.length < 2) avisos.push('Una línea tiene menos de 2 puntos');
+        r.longitud += perimetro(pts, !!pts.cerrada && capa.tipo === 'arco');
       } else if (capa.tipo === 'linea' || capa.tipo === 'borde') {
         if (pts.length < 2) avisos.push('Una línea tiene menos de 2 puntos');
         r.longitud += perimetro(pts, false);
@@ -377,7 +409,9 @@
       const tipo = t.indexOf('pun') === 0 || t === 'p' ? 'puntos'
         : t.indexOf('lin') === 0 || t === 'l' ? 'linea'
         : t.indexOf('cir') === 0 || t === 'c' ? 'circulo'
-        : t.indexOf('bor') === 0 || t === 'b' ? 'borde' : 'poligono';
+        : t.indexOf('bor') === 0 || t === 'b' ? 'borde'
+        : t.indexOf('arc') === 0 || t.indexOf('cur') === 0 || t === 'a' ? 'arco'
+        : 'polilinea';
       const union = partes.slice(2).join('/');
       const usados = [];
       union.split(';').forEach(g => {
@@ -747,8 +781,10 @@
         return;
       }
 
-      const cerrado = capa.tipo === 'poligono';
+      const cerradoDe = fig => capa.tipo === 'poligono' ? true
+        : (capa.tipo === 'polilinea' || capa.tipo === 'arco') ? !!fig.cerrada : false;
       figuras(capa).figs.forEach(fig => {
+        const cerrado = cerradoDe(fig);
         if (fig.length < 2 || (cerrado && fig.length < 3)) return;
 
         par(0, 'POLYLINE'); par(8, ly); par(66, 1);
@@ -759,7 +795,7 @@
         });
         par(0, 'SEQEND'); par(8, ly);
 
-        if (cerrado && o.etiquetasArea) {
+        if (cerrado && capa.tipo !== 'arco' && o.etiquetasArea) {
           const area = calcular({ tipo: 'poligono', puntos: fig }).area;
           const cx = fig.reduce((s, p) => s + p.E, 0) / fig.length;
           const cy = fig.reduce((s, p) => s + p.N, 0) / fig.length;

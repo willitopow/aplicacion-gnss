@@ -9,10 +9,10 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Linderos">
-<link rel="manifest" href="manifest.webmanifest?v=31">
+<link rel="manifest" href="manifest.webmanifest?v=32">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-<link rel="stylesheet" href="css/estilo.css?v=31">
+<link rel="stylesheet" href="css/estilo.css?v=32">
 </head>
 <body>
 
@@ -48,8 +48,8 @@
     <p class="ayuda">Cada código forma una capa. Elige cómo dibujarla: puntos, línea abierta (cerca, vía), polígono cerrado (lindero, casa) o círculo (fuente, con 3 o más puntos). Los puntos se unen según la columna <b>Orden de unión</b>, que sigue el croquis. Escribe los números de los puntos: <code>1-2-3-4-1</code> cierra una casa; usa <code>;</code> para separar figuras distintas dentro de la misma capa (<code>1-2-3; 5-6-7</code>). Si la celda está vacía, se unen en el orden de sus nombres.</p>
     <details open>
       <summary>Croquis: unir puntos por número</summary>
-      <p class="ayuda">Una línea por figura: <code>NOMBRE / tipo / orden</code>. Tipo: <code>poligono</code>, <code>circulo</code>, <code>linea</code> o <code>puntos</code>. Los números pueden venir de cualquier código. Las líneas que empiezan con # se ignoran.</p>
-      <textarea id="croquis" rows="8" placeholder="FUENTE / circulo / 127-128-129-130-131-132"></textarea>
+      <p class="ayuda">Una línea por figura: <code>NOMBRE / tipo / orden</code>. Tipo: <code>polilinea</code> (se cierra si repites el primer número), <code>arco</code> (curva que pasa por los puntos), <code>circulo</code>, <code>linea</code>, <code>borde</code> o <code>puntos</code>. Los números pueden venir de cualquier código. Las líneas que empiezan con # se ignoran.</p>
+      <textarea id="croquis" rows="8" placeholder="CERCA / polilinea / 10-11-12-13-10"></textarea>
       <button id="btnCroquis" type="button">Aplicar croquis</button>
       <div id="avisoCroquis" class="error"></div>
     </details>
@@ -135,11 +135,11 @@
 
 <footer>
   <button id="btnInstalar" type="button" hidden>Instalar en este dispositivo</button>
-  <p>Código abierto · Licencia MIT · Versión 31</p>
+  <p>Código abierto · Licencia MIT · Versión 32</p>
 </footer>
 
-<script src="js/core.js?v=31"></script>
-<script src="js/app.js?v=31"></script>
+<script src="js/core.js?v=32"></script>
+<script src="js/app.js?v=32"></script>
 <script>
   // Registro del service worker (requiere https o localhost)
   if ('serviceWorker' in navigator) {

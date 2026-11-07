@@ -52,7 +52,8 @@ Al importar, cada código aparece solo como **puntos**. Las figuras se arman en 
 NOMBRE / tipo / orden
 ```
 
-- `poligono`: cerrado (un lindero, una casa). Repite el primer número al final.
+- `polilinea`: línea recta entre puntos. Si repites el primer número al final, queda cerrada y calcula área y perímetro (un lindero, una casa).
+- `arco`: curva suave que pasa por los puntos en orden (una cerca curva, un camino). Calcula la longitud.
 - `circulo`: con 3 o más puntos (fuente, árbol grande).
 - `linea`: abierta (cerca, vía, gradas).
 - `borde`: barrera punteada (un hueco, una caída). Se calcula su longitud.

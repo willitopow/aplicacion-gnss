@@ -136,7 +136,7 @@ test('Croquis: une puntos de cualquier código por número', () => {
   const pts = [127,128,129,130,131,132].map((n,i) => ({ nombre: 'PT'+n, codigo: 'palma', N: n, E: n, orden: i }));
   const cr = Core.croquis('FUENTE | poligono | 127-128-129-130-131-132-127\n# comentario', pts);
   assert.strictEqual(cr.capas.length, 1);
-  assert.strictEqual(cr.capas[0].tipo, 'poligono');
+  assert.strictEqual(cr.capas[0].tipo, 'polilinea');
   const r = Core.calcular(cr.capas[0]);
   assert.strictEqual(r.n, 6);
   assert.strictEqual(r.aviso, '');
@@ -301,6 +301,28 @@ test('Cualquier formato sin cabecera se convierte al mismo formato (número, N, 
     assert.ok(Math.abs(r.puntos[0].h - 992.081) < 1e-6, 'h en ' + t);
     assert.strictEqual(r.puntos[0].codigo, 'edificio');
   });
+});
+
+test('Polilinea: cerrada si repite el primer número (área), abierta (longitud)', () => {
+  const pts = [1, 2, 3, 4].map((n, i) => ({ nombre: 'PT' + n, codigo: 'x', N: [0, 0, 10, 10][i], E: [0, 10, 10, 0][i], orden: i }));
+  const cerrada = Core.croquis('L / polilinea / 1-2-3-4-1', pts).capas[0];
+  const rc = Core.calcular(cerrada);
+  assert.ok(Math.abs(rc.area - 100) < 1e-9);
+  const abierta = Core.croquis('L / polilinea / 1-2-3-4', pts).capas[0];
+  const ra = Core.calcular(abierta);
+  assert.strictEqual(ra.area, 0);
+  assert.ok(Math.abs(ra.longitud - 30) < 1e-9);
+});
+
+test('Arco: curva que pasa por los puntos (longitud mayor que la cuerda)', () => {
+  const pts = [0, 1, 2].map(i => ({ nombre: 'P' + (i + 1), codigo: 'c', N: [0, 5, 0][i], E: [0, 5, 10][i], orden: i }));
+  const arco = Core.croquis('C / arco / 1-2-3', pts).capas[0];
+  const r = Core.calcular(arco);
+  assert.ok(r.longitud > 10.5);    // la cuerda 1-3 mide 10; el arco pasa por el punto 2
+  const dist = (a, b) => Math.hypot(a.E - b.E, a.N - b.N);
+  const trazo = Core.figuras(arco).figs[0];
+  assert.ok(Math.abs(trazo[0].E - 0) < 1e-9 && Math.abs(trazo[trazo.length - 1].E - 10) < 1e-9);
+  assert.ok(dist(trazo[Math.floor(trazo.length / 2)], { E: 5, N: 5 }) < 0.6);   // pasa cerca del punto 2
 });
 
 console.log('\n' + ok + ' pruebas correctas' + (process.exitCode ? ' (hay fallos)' : ''));

@@ -271,8 +271,6 @@
     tb.innerHTML = '';
     estado.capas.forEach((c, i) => {
       const r = Core.calcular(c);
-      const esPoli = c.tipo === 'poligono' || c.tipo === 'circulo';
-      const esLinea = c.tipo === 'linea' || c.tipo === 'borde';
       const tr = document.createElement('tr');
       tr.innerHTML =
         '<td><input type="checkbox" class="inc" data-i="' + i + '"' + (c.incluir ? ' checked' : '') + '></td>' +
@@ -282,13 +280,14 @@
           opcionTipo('puntos', 'Puntos', c.tipo) +
           opcionTipo('linea', 'Línea abierta', c.tipo) +
           opcionTipo('borde', 'Borde (barrera)', c.tipo) +
-          opcionTipo('poligono', 'Polígono cerrado', c.tipo) +
+          opcionTipo('polilinea', 'Polilínea', c.tipo) +
+          opcionTipo('arco', 'Arco (curva)', c.tipo) +
           opcionTipo('circulo', 'Círculo (3+ puntos)', c.tipo) +
         '</select></td>' +
         '<td>' + r.n + '</td>' +
-        '<td>' + (esPoli ? r.area.toFixed(2) : '—') + '</td>' +
-        '<td>' + (esPoli ? r.ha.toFixed(4) : '—') + '</td>' +
-        '<td>' + (esPoli ? r.perimetro.toFixed(2) : esLinea ? r.longitud.toFixed(2) : '—') + '</td>' +
+        '<td>' + (r.area > 0 ? r.area.toFixed(2) : '—') + '</td>' +
+        '<td>' + (r.area > 0 ? r.ha.toFixed(4) : '—') + '</td>' +
+        '<td>' + (r.perimetro > 0 ? r.perimetro.toFixed(2) : r.longitud > 0 ? r.longitud.toFixed(2) : '—') + '</td>' +
         '<td><input type="text" class="union" data-i="' + i + '" value="' + esc(c.union || '') +
           '" placeholder="ej: 1-2-3-4-1"' + (c.tipo === 'puntos' ? ' disabled' : '') + '></td>' +
         '<td class="aviso">' + esc(r.aviso) + '</td>';
@@ -382,14 +381,14 @@
 
       Core.figuras(c).figs.forEach(fig => {
         if (fig.length < 2) return;
-        const cerrado = c.tipo === 'poligono' && fig.length >= 3;
+        const cerrado = (c.tipo === 'poligono' || (c.tipo === 'polilinea' && fig.cerrada)) && fig.length >= 3;
         const d = fig.map(p => sx(p) + ',' + sy(p)).join(' ');
         g += cerrado
           ? '<polygon points="' + d + '" fill="' + col + '" fill-opacity="0.2" stroke="' + col + '" stroke-width="' + (u * 1.5) + '"/>'
           : '<polyline points="' + d + '" fill="none" stroke="' + col + '" stroke-width="' + (u * 1.5) +
           '" stroke-dasharray="' + (c.tipo === 'borde' ? (u * 4) + ' ' + (u * 2) : 'none') + '"/>';
         // Vértices sin dibujo ni número (ver arriba): solo área de toque invisible
-        fig.forEach(p => {
+        (fig.origen || fig).forEach(p => {
           hits += '<circle class="pt" data-o="' + p.orden + '" cx="' + sx(p) + '" cy="' + sy(p) + '" r="' + (u * 6) + '" fill="rgba(0,0,0,0)" pointer-events="all"/>';
         });
 
@@ -435,8 +434,8 @@
     act.forEach(c => {
       const r = Core.calcular(c);
       n += r.n;
-      if (c.tipo === 'poligono' || c.tipo === 'circulo') { area += r.area; per += r.perimetro; }
-      if (c.tipo === 'linea' || c.tipo === 'borde') lon += r.longitud;
+      if (c.tipo === 'poligono' || c.tipo === 'circulo' || c.tipo === 'polilinea') { area += r.area; per += r.perimetro; }
+      if (c.tipo === 'linea' || c.tipo === 'borde' || c.tipo === 'arco' || c.tipo === 'polilinea') lon += r.longitud;
     });
     $('resumen').innerHTML =
       '<b>Capas incluidas:</b> ' + act.length +
