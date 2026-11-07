@@ -340,10 +340,13 @@
 
     let g = '';
     let hits = '';   // áreas de toque de los puntos (encima de todo)
+    const dibujados = new Set();   // cada punto se dibuja una sola vez, aunque esté en varias capas
     act.forEach(c => {
       const col = c.color;
       if (c.tipo === 'puntos') {
         c.puntos.forEach(p => {
+          if (dibujados.has(p.orden)) return;
+          dibujados.add(p.orden);
           hits += '<circle class="pt" data-o="' + p.orden + '" cx="' + sx(p) + '" cy="' + sy(p) + '" r="' + (u * 6) + '" fill="rgba(0,0,0,0)" pointer-events="all"/>';
           g += '<circle cx="' + sx(p) + '" cy="' + sy(p) + '" r="' + (u * 1.5) + '" fill="' + col + '" pointer-events="none"/>';
           if (etqPts) {
