@@ -649,6 +649,13 @@
     return figuraDelCroquis(nombre);
   }
 
+  // Mensajes de la sección 5: se muestran debajo de los botones y la pantalla baja hasta ahí
+  function avisoCortes(texto, error) {
+    const box = $('resumenVolumen');
+    box.innerHTML = '<span class="' + (error ? 'error' : 'ok') + '">' + esc(texto) + '</span>';
+    box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
   function numeroDe(id, defecto) {
     const v = Number(String($(id).value).replace(',', '.'));
     return isFinite(v) && v > 0 ? v : defecto;
@@ -668,9 +675,9 @@
 
   function calcularVolumen() {
     const cota = cotaDiseno();
-    if (cota === null) return mostrar('Escribe la cota de diseño (ej. 997.50).', true);
+    if (cota === null) return avisoCortes('Escribe la cota de diseño (ej. 997.50) en el recuadro de arriba de esta sección.', true);
     const zona = obtenerTrazo($('selZona').value);
-    if (!zona || zona.length < 3 || !zona.cerrada) return mostrar('Elige una zona cerrada del croquis (polilínea que repite el primer número).', true);
+    if (!zona || zona.length < 3 || !zona.cerrada) return avisoCortes('Primero dibuja una zona en el plano (botón Dibujar zona) y elígela en Zona.', true);
     const S = Core.superficie(estado.puntos);
     const r = Core.volumenCorteRelleno(S, zona, cota, numeroDe('pasoCalc', 0.5));
     let txt = '<b>Zona ' + esc($('selZona').value) + '</b> · Cota de diseño ' + cota.toFixed(2) + ' m · ' +
@@ -683,7 +690,7 @@
              'Mide con el GNSS los puntos del borde de la zona y agrégalos (sección 1) o en el croquis.</span>';
     }
     $('resumenVolumen').innerHTML = txt;
-    mostrar('Volumen calculado.');
+    $('resumenVolumen').scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
   // Gráfico SVG: terreno, cota de diseño y áreas de corte (rojo) y relleno (azul)
@@ -724,9 +731,9 @@
 
   function dibujarCortes() {
     const cota = cotaDiseno();
-    if (cota === null) return mostrar('Escribe la cota de diseño (ej. 997.50).', true);
+    if (cota === null) return avisoCortes('Escribe la cota de diseño (ej. 997.50) en el recuadro de arriba de esta sección.', true);
     const eje = obtenerTrazo($('selEje').value);
-    if (!eje || eje.length < 2) return mostrar('Elige un eje del croquis (línea con al menos 2 puntos).', true);
+    if (!eje || eje.length < 2) return avisoCortes('Primero dibuja un eje en el plano (botón Dibujar eje) y elígelo en Eje.', true);
     const S = Core.superficie(estado.puntos);
     const paso = numeroDe('pasoCalc', 0.5), inter = numeroDe('intervaloSec', 5), semi = numeroDe('semiancho', 10);
     const per = Core.perfilLongitudinal(S, eje, cota, paso);
@@ -736,15 +743,16 @@
     const seccionesHtml = secs.map(sec => svgPerfil(sec.perfil.map(p => ({ x: p.d, h: p.h })), cota,
       'Sección en ' + sec.s.toFixed(1) + ' m · corte ' + sec.areaCorte.toFixed(2) + ' m² · relleno ' + sec.areaRelleno.toFixed(2) + ' m²', 300, 200)).join('');
     $('graficosCortes').innerHTML = perfilSvg + '<h3>Secciones transversales</h3><div class="grid-secciones">' + seccionesHtml + '</div>';
-    mostrar('Perfil y ' + secs.length + ' secciones calculadas.');
+    $('resumenVolumen').innerHTML = '<span class="ok">Perfil y ' + secs.length + ' secciones calculados (más abajo).</span>';
+    $('graficosCortes').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   function exportarCortes() {
     const cota = cotaDiseno();
-    if (cota === null) return mostrar('Escribe la cota de diseño.', true);
+    if (cota === null) return avisoCortes('Escribe la cota de diseño.', true);
     const eje = obtenerTrazo($('selEje').value);
     const zona = obtenerTrazo($('selZona').value);
-    if (!eje || eje.length < 2) return mostrar('Elige un eje del croquis.', true);
+    if (!eje || eje.length < 2) return avisoCortes('Primero dibuja un eje en el plano.', true);
     const S = Core.superficie(estado.puntos);
     const paso = numeroDe('pasoCalc', 0.5), inter = numeroDe('intervaloSec', 5), semi = numeroDe('semiancho', 10);
     const f = v => (v === null || v === undefined) ? '' : Number(v).toFixed(3);
@@ -763,7 +771,7 @@
     });
     const csv = filas.map(r => r.map(x => /[",;\r\n]/.test(String(x)) ? '"' + String(x).replace(/"/g, '""') + '"' : String(x)).join(',')).join('\r\n') + '\r\n';
     descargar(estado.nombreBase + '_cortes.csv', '\uFEFF' + csv, 'text/csv;charset=utf-8');
-    mostrar('CSV de cortes y rellenos generado.');
+    avisoCortes('CSV de cortes y rellenos generado (revisa tu carpeta de descargas).', false);
   }
 
   /* ---------- exportación ---------- */
