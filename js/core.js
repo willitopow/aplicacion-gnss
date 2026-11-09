@@ -846,6 +846,134 @@
     return lineas.join('\r\n') + '\r\n';
   }
 
+  /* ---------- superficie del terreno, cortes y rellenos ---------- */
+
+  // Superficie del terreno: triangulación de los puntos con altura y altura en cualquier punto
+  function superficie(puntos) {
+    const pts = puntos.filter(p => p.h !== null && p.h !== undefined && isFinite(p.h));
+    const tris = triangular(pts);
+    return {
+      alturaEn(E, N) {
+        for (let k = 0; k < tris.length; k++) {
+          const a = pts[tris[k][0]], b = pts[tris[k][1]], c = pts[tris[k][2]];
+          const d = (b.N - c.N) * (a.E - c.E) + (c.E - b.E) * (a.N - c.N);
+          if (Math.abs(d) < 1e-12) continue;
+          const w1 = ((b.N - c.N) * (E - c.E) + (c.E - b.E) * (N - c.N)) / d;
+          const w2 = ((c.N - a.N) * (E - c.E) + (a.E - c.E) * (N - c.N)) / d;
+          const w3 = 1 - w1 - w2;
+          const eps = -1e-9;
+          if (w1 >= eps && w2 >= eps && w3 >= eps) return w1 * a.h + w2 * b.h + w3 * c.h;
+        }
+        return null;
+      }
+    };
+  }
+
+  // ¿El punto (E,N) está dentro del polígono? (poly: lista de {E,N} sin repetir el primero)
+  function dentroDePoligono(E, N, poly) {
+    let dentro = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      const a = poly[i], b = poly[j];
+      if ((a.N > N) !== (b.N > N) && E < (b.E - a.E) * (N - a.N) / (b.N - a.N) + a.E) dentro = !dentro;
+    }
+    return dentro;
+  }
+
+  // Volumen de corte (terreno sobre la cota de diseño) y relleno (terreno bajo la cota) en una zona
+  function volumenCorteRelleno(superf, poly, cota, paso) {
+    const p = paso > 0 ? paso : 0.5;
+    const minE = Math.min.apply(null, poly.map(q => q.E)), maxE = Math.max.apply(null, poly.map(q => q.E));
+    const minN = Math.min.apply(null, poly.map(q => q.N)), maxN = Math.max.apply(null, poly.map(q => q.N));
+    let area = 0, corte = 0, relleno = 0, sinDato = 0;
+    for (let x = minE + p / 2; x < maxE; x += p) {
+      for (let y = minN + p / 2; y < maxN; y += p) {
+        if (!dentroDePoligono(x, y, poly)) continue;
+        const h = superf.alturaEn(x, y);
+        if (h === null) { sinDato++; continue; }
+        area += p * p;
+        const dz = h - cota;
+        if (dz > 0) corte += dz * p * p; else relleno -= dz * p * p;
+      }
+    }
+    return { area: area, corte: corte, relleno: relleno, neto: corte - relleno, sinDato: sinDato, paso: p };
+  }
+
+  // Punto a una distancia s a lo largo de una línea, con la dirección de la línea en ese punto
+  function puntoEnLinea(linea, s) {
+    let acum = 0;
+    for (let i = 0; i < linea.length - 1; i++) {
+      const a = linea[i], b = linea[i + 1];
+      const L = Math.hypot(b.E - a.E, b.N - a.N);
+      if (L === 0) continue;
+      if (s <= acum + L || i === linea.length - 2) {
+        const t = Math.min(1, Math.max(0, (s - acum) / L));
+        return { E: a.E + t * (b.E - a.E), N: a.N + t * (b.N - a.N), dE: (b.E - a.E) / L, dN: (b.N - a.N) / L };
+      }
+      acum += L;
+    }
+    const a = linea[linea.length - 2], b = linea[linea.length - 1];
+    const L = Math.hypot(b.E - a.E, b.N - a.N) || 1;
+    return { E: b.E, N: b.N, dE: (b.E - a.E) / L, dN: (b.N - a.N) / L };
+  }
+
+  function longitudLinea(linea) {
+    let L = 0;
+    for (let i = 0; i < linea.length - 1; i++) L += Math.hypot(linea[i + 1].E - linea[i].E, linea[i + 1].N - linea[i].N);
+    return L;
+  }
+
+  // Perfil longitudinal: terreno a lo largo del eje, cada "paso" metros
+  function perfilLongitudinal(superf, linea, cota, paso) {
+    const p = paso > 0 ? paso : 1;
+    const L = longitudLinea(linea);
+    const datos = [];
+    for (let s = 0; s <= L + 1e-9; s += p) {
+      const q = puntoEnLinea(linea, Math.min(s, L));
+      datos.push({ s: s, E: q.E, N: q.N, h: superf.alturaEn(q.E, q.N), cota: cota });
+    }
+    if (datos.length && datos[datos.length - 1].s < L - 1e-9) {
+      const q = puntoEnLinea(linea, L);
+      datos.push({ s: L, E: q.E, N: q.N, h: superf.alturaEn(q.E, q.N), cota: cota });
+    }
+    return { longitud: L, datos: datos };
+  }
+
+  // Secciones transversales perpendiculares al eje, cada "intervalo" metros, a ambos lados "semi" metros
+  function seccionesTransversales(superf, linea, cota, intervalo, semi, paso) {
+    const inter = intervalo > 0 ? intervalo : 5;
+    const p = paso > 0 ? paso : 0.5;
+    const L = longitudLinea(linea);
+    const estaciones = [];
+    for (let s = 0; s <= L + 1e-9; s += inter) estaciones.push(Math.min(s, L));
+    if (estaciones[estaciones.length - 1] < L - 1e-9) estaciones.push(L);
+    return estaciones.map(s => {
+      const q = puntoEnLinea(linea, s);
+      const nE = -q.dN, nN = q.dE;                  // perpendicular al eje
+      const perfil = [];
+      for (let d = -semi; d <= semi + 1e-9; d += p) {
+        const E = q.E + d * nE, N = q.N + d * nN;
+        perfil.push({ d: d, E: E, N: N, h: superf.alturaEn(E, N) });
+      }
+      let areaCorte = 0, areaRelleno = 0;
+      for (let i = 0; i < perfil.length - 1; i++) {
+        const a = perfil[i], b = perfil[i + 1];
+        if (a.h === null || b.h === null) continue;
+        const za = a.h - cota, zb = b.h - cota;
+        const ancho = b.d - a.d;
+        if (za >= 0 && zb >= 0) areaCorte += (za + zb) / 2 * ancho;
+        else if (za <= 0 && zb <= 0) areaRelleno += (-za - zb) / 2 * ancho;
+        else {
+          // cruce de la cota dentro del tramo
+          const t = za / (za - zb);
+          const zc = za + (zb - za) * t, ancho1 = t * ancho, ancho2 = (1 - t) * ancho;
+          if (za > 0) { areaCorte += za / 2 * ancho1; areaRelleno += (-zb) / 2 * ancho2; }
+          else { areaRelleno += (-za) / 2 * ancho1; areaCorte += zb / 2 * ancho2; }
+        }
+      }
+      return { s: s, E: q.E, N: q.N, perfil: perfil, areaCorte: areaCorte, areaRelleno: areaRelleno };
+    });
+  }
+
   /* ---------- CSV de resultados ---------- */
 
   function campoCSV(v) {
@@ -869,7 +997,8 @@
     agrupar, tipoSugerido, figuras, croquis, ajusteCirculo,
     triangular, curvasNivel, cruza, suavizarLinea,
     calcular, extension,
-    nombreLayerDXF, generarDXF, generarCSV, aFormatoAutocad
+    nombreLayerDXF, generarDXF, generarCSV, aFormatoAutocad,
+    superficie, volumenCorteRelleno, perfilLongitudinal, seccionesTransversales, dentroDePoligono
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = API;

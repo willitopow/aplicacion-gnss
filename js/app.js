@@ -21,6 +21,9 @@
     curvas: null,      // resultado de Core.curvasNivel
     borrados: [],      // puntos borrados (se pueden restaurar)
     sel: null,         // orden del punto seleccionado en el mapa
+    zonas: [],         // zonas dibujadas en el plano: { nombre, tipo, poly }
+    ejes: [],          // ejes dibujados en el plano
+    dibujo: null,      // dibujo en curso: { tipo: zona o eje, pts: [] }
     vb: null,          // viewBox actual del mapa (coordenadas locales)
     origen: null,      // origen local del mapa: { x: minE, y: maxN }
     escala0: 1         // ancho inicial de la vista (base para límites de zoom)
@@ -173,6 +176,7 @@
   }
 
   function refrescar() {
+    actualizarSelectoresCortes();
     recalcCurvas();
     pintarTabla();
     pintarTablaAlturas();
@@ -327,7 +331,10 @@
     const pts = puntosDe(act);
     if (!pts.length) { svg.innerHTML = ''; return; }
 
-    if (!estado.vb) ajustar(Core.extension(puntosParaAjustar(act)));
+    if (!estado.vb) {
+      const extra = estado.zonas.concat(estado.ejes).reduce((acc, t) => acc.concat(t.poly), []);
+      ajustar(Core.extension(puntosParaAjustar(act).concat(extra)));
+    }
 
     const o = estado.origen;
     const sx = p => p.E - o.x;
@@ -403,6 +410,27 @@
         }
       });
     });
+
+    // Zonas y ejes dibujados sobre el plano
+    estado.zonas.concat(estado.ejes).forEach(t => {
+      const trazo = t.poly.map(p => sx(p) + ',' + sy(p)).join(' ');
+      if (t.tipo === 'zona') {
+        g += '<polygon points="' + trazo + '" fill="#f59e0b" fill-opacity="0.12" stroke="#d97706" stroke-width="' + (u * 1.5) +
+             '" stroke-dasharray="' + (u * 4) + ' ' + (u * 2) + '"/>';
+      } else {
+        g += '<polyline points="' + trazo + '" fill="none" stroke="#7c3aed" stroke-width="' + (u * 1.5) + '"/>';
+      }
+      const cx = t.poly.reduce((acc, p) => acc + sx(p), 0) / t.poly.length;
+      const cy = t.poly.reduce((acc, p) => acc + sy(p), 0) / t.poly.length;
+      g += '<text x="' + cx + '" y="' + cy + '" font-size="' + (u * 5) + '" text-anchor="middle" fill="' +
+           (t.tipo === 'zona' ? '#92400e' : '#5b21b6') + '">' + esc(t.nombre) + '</text>';
+    });
+    if (estado.dibujo && estado.dibujo.pts.length) {
+      const dp = estado.dibujo.pts;
+      g += '<polyline points="' + dp.map(p => sx(p) + ',' + sy(p)).join(' ') + '" fill="none" stroke="#dc2626" stroke-width="' +
+           (u * 1.2) + '" stroke-dasharray="' + (u * 3) + ' ' + (u * 2) + '"/>';
+      dp.forEach(p => { g += '<circle cx="' + sx(p) + '" cy="' + sy(p) + '" r="' + (u * 2) + '" fill="#dc2626"/>'; });
+    }
 
     if (estado.sel !== null) {
       const ps = estado.puntos.find(x => x.orden === estado.sel);
@@ -526,7 +554,9 @@
         // Busca el punto que está bajo el dedo o el cursor al soltar (no depende de la captura)
         const bajo = document.elementFromPoint(e.clientX, e.clientY);
         const id = bajo && bajo.getAttribute ? bajo.getAttribute('data-o') : null;
-        if (id !== null && bajo.classList.contains('pt')) {
+        if (estado.dibujo) {
+          agregarVertice(e, bajo, id);
+        } else if (id !== null && bajo.classList.contains('pt')) {
           seleccionar(Number(id));
           mostrar('Punto ' + Core.numeroPunto(estado.puntos.find(x => x.orden === Number(id)) || {}) + ' seleccionado. Edítalo abajo.');
         }
@@ -537,6 +567,203 @@
     };
     svg.addEventListener('pointerup', soltar);
     svg.addEventListener('pointercancel', soltar);
+  }
+
+  /* ---------- cortes y rellenos ---------- */
+
+  // Zonas (polilíneas cerradas) y ejes (líneas) que existen en el croquis
+  function actualizarSelectoresCortes() {
+    const sz = $('selZona'), se = $('selEje');
+    const zonaAnt = sz.value, ejeAnt = se.value;
+    const zonasCroquis = estado.capas.filter(c => c.croquis && c.tipo === 'polilinea' && Core.figuras(c).figs.some(f => f.cerrada)).map(c => c.nombre);
+    const ejesCroquis = estado.capas.filter(c => c.croquis && (c.tipo === 'linea' || c.tipo === 'arco' || c.tipo === 'polilinea')).map(c => c.nombre);
+    const zonas = estado.zonas.map(t => t.nombre).concat(zonasCroquis);
+    const ejes = estado.ejes.map(t => t.nombre).concat(ejesCroquis);
+    sz.innerHTML = zonas.map(n => '<option value="' + esc(n) + '">' + esc(n) + '</option>').join('');
+    se.innerHTML = ejes.map(n => '<option value="' + esc(n) + '">' + esc(n) + '</option>').join('');
+    if (zonas.indexOf(zonaAnt) >= 0) sz.value = zonaAnt;
+    if (ejes.indexOf(ejeAnt) >= 0) se.value = ejeAnt;
+  }
+
+  /* ---------- dibujar zonas y ejes sobre el plano ---------- */
+
+  function iniciarDibujo(tipo) {
+    estado.dibujo = { tipo: tipo, pts: [] };
+    actualizarEstadoDibujo();
+    pintarMapa();
+    mostrar(tipo === 'zona' ? 'Toca el plano para marcar la zona. Al tocar el primer punto se cierra.' : 'Toca el plano para marcar el eje. Pulsa Terminar al acabar.');
+  }
+
+  function actualizarEstadoDibujo() {
+    const t = $('estadoDibujo');
+    const d = estado.dibujo;
+    if (!d) { t.textContent = ''; return; }
+    const n = d.pts.length;
+    t.textContent = (d.tipo === 'zona' ? 'Dibujando zona' : 'Dibujando eje') + ': ' + n + ' punto' + (n === 1 ? '' : 's') +
+      (d.tipo === 'zona' ? '. Toca el primer punto para cerrarla o pulsa Terminar.' : '. Pulsa Terminar al acabar.');
+  }
+
+  // Toque durante el dibujo: agrega un vértice (si tocaste un punto del levantamiento, usa sus coordenadas)
+  function agregarVertice(e, bajo, id) {
+    const svg = $('mapa'), o = estado.origen, d = estado.dibujo;
+    if (!o || !d) return;
+    const q = svgPunto(svg, e.clientX, e.clientY);
+    if (d.tipo === 'zona' && d.pts.length >= 3) {
+      const f = d.pts[0];
+      const fx = f.E - o.x, fy = -(f.N - o.y);
+      if (Math.hypot(q.x - fx, q.y - fy) < escalaPx(svg) * 14) return terminarDibujo();
+    }
+    let E = q.x + o.x, N = o.y - q.y;
+    if (id !== null && bajo && bajo.classList && bajo.classList.contains('pt')) {
+      const p = estado.puntos.find(x => x.orden === Number(id));
+      if (p) { E = p.E; N = p.N; }
+    }
+    d.pts.push({ E: E, N: N });
+    actualizarEstadoDibujo();
+    pintarMapa();
+  }
+
+  function terminarDibujo() {
+    const d = estado.dibujo;
+    if (!d) return;
+    if (d.tipo === 'zona' && d.pts.length < 3) return mostrar('Una zona necesita al menos 3 puntos.', true);
+    if (d.tipo === 'eje' && d.pts.length < 2) return mostrar('Un eje necesita al menos 2 puntos.', true);
+    const lista = d.tipo === 'zona' ? estado.zonas : estado.ejes;
+    const nombre = (d.tipo === 'zona' ? 'Z' : 'E') + (lista.length + 1);
+    const poly = d.pts.slice();
+    poly.cerrada = d.tipo === 'zona';
+    lista.push({ nombre: nombre, tipo: d.tipo, poly: poly });
+    estado.dibujo = null;
+    actualizarEstadoDibujo();
+    actualizarSelectoresCortes();
+    pintarMapa();
+    mostrar(nombre + ' guardada. Elígela en la sección 5 para calcular.');
+  }
+
+  // Trazo por nombre: primero los dibujados en el plano, luego los del croquis
+  function obtenerTrazo(nombre) {
+    const z = estado.zonas.find(t => t.nombre === nombre);
+    if (z) return z.poly;
+    const e = estado.ejes.find(t => t.nombre === nombre);
+    if (e) return e.poly;
+    return figuraDelCroquis(nombre);
+  }
+
+  function numeroDe(id, defecto) {
+    const v = Number(String($(id).value).replace(',', '.'));
+    return isFinite(v) && v > 0 ? v : defecto;
+  }
+
+  // Polígono (zona) o trazo (eje) de una figura del croquis, por nombre
+  function figuraDelCroquis(nombre) {
+    const c = estado.capas.find(x => x.croquis && x.nombre === nombre);
+    if (!c) return null;
+    return Core.figuras(c).figs[0] || null;
+  }
+
+  function cotaDiseno() {
+    const v = Number(String($('cotaDiseno').value).replace(',', '.'));
+    return ($('cotaDiseno').value.trim() !== '' && isFinite(v)) ? v : null;
+  }
+
+  function calcularVolumen() {
+    const cota = cotaDiseno();
+    if (cota === null) return mostrar('Escribe la cota de diseño (ej. 997.50).', true);
+    const zona = obtenerTrazo($('selZona').value);
+    if (!zona || zona.length < 3 || !zona.cerrada) return mostrar('Elige una zona cerrada del croquis (polilínea que repite el primer número).', true);
+    const S = Core.superficie(estado.puntos);
+    const r = Core.volumenCorteRelleno(S, zona, cota, numeroDe('pasoCalc', 0.5));
+    let txt = '<b>Zona ' + esc($('selZona').value) + '</b> · Cota de diseño ' + cota.toFixed(2) + ' m · ' +
+      '<b>Área:</b> ' + r.area.toFixed(2) + ' m² · <b>Corte:</b> ' + r.corte.toFixed(2) + ' m³ · ' +
+      '<b>Relleno:</b> ' + r.relleno.toFixed(2) + ' m³ · <b>Diferencia (corte − relleno):</b> ' + r.neto.toFixed(2) + ' m³';
+    if (r.sinDato > 0) {
+      const total = r.area + r.sinDato * r.paso * r.paso;
+      const pct = (r.sinDato * r.paso * r.paso / total * 100).toFixed(0);
+      txt += '<br><span class="error">Atención: el ' + pct + '% de la zona no tiene puntos medidos alrededor y no se cuenta. ' +
+             'Mide con el GNSS los puntos del borde de la zona y agrégalos (sección 1) o en el croquis.</span>';
+    }
+    $('resumenVolumen').innerHTML = txt;
+    mostrar('Volumen calculado.');
+  }
+
+  // Gráfico SVG: terreno, cota de diseño y áreas de corte (rojo) y relleno (azul)
+  function svgPerfil(datos, cota, titulo, W, H) {
+    const validos = datos.filter(d => d.h !== null && d.h !== undefined);
+    if (!validos.length) return '<p class="error">' + esc(titulo) + ': sin datos de terreno.</p>';
+    const xs = datos.map(d => d.x);
+    const xmin = Math.min.apply(null, xs), xmax = Math.max.apply(null, xs);
+    const hs = validos.map(d => d.h).concat([cota]);
+    let ymin = Math.min.apply(null, hs), ymax = Math.max.apply(null, hs);
+    if (ymax - ymin < 0.2) { ymin -= 0.1; ymax += 0.1; }
+    const pad = (ymax - ymin) * 0.08; ymin -= pad; ymax += pad;
+    const X = x => 45 + (x - xmin) / ((xmax - xmin) || 1) * (W - 60);
+    const Y = h => H - 28 - (h - ymin) / (ymax - ymin) * (H - 50);
+    let g = '<text x="10" y="18" font-size="13" fill="#111">' + esc(titulo) + '</text>';
+    g += '<line x1="45" y1="' + (H - 28) + '" x2="' + (W - 15) + '" y2="' + (H - 28) + '" stroke="#999"/>';
+    g += '<line x1="45" y1="25" x2="45" y2="' + (H - 28) + '" stroke="#999"/>';
+    g += '<text x="4" y="' + (Y(ymax) + 4) + '" font-size="11" fill="#555">' + ymax.toFixed(2) + '</text>';
+    g += '<text x="4" y="' + (Y(ymin) + 4) + '" font-size="11" fill="#555">' + ymin.toFixed(2) + '</text>';
+    for (let i = 0; i < datos.length - 1; i++) {
+      const a = datos[i], b = datos[i + 1];
+      if (a.h === null || b.h === null || a.h === undefined || b.h === undefined) continue;
+      const corte = (a.h + b.h) / 2 > cota;
+      g += '<polygon points="' + X(a.x) + ',' + Y(a.h) + ' ' + X(b.x) + ',' + Y(b.h) + ' ' + X(b.x) + ',' + Y(cota) + ' ' + X(a.x) + ',' + Y(cota) +
+           '" fill="' + (corte ? '#ef4444' : '#3b82f6') + '" fill-opacity="0.3"/>';
+    }
+    g += '<line x1="45" y1="' + Y(cota) + '" x2="' + (W - 15) + '" y2="' + Y(cota) + '" stroke="#16a34a" stroke-dasharray="6 4" stroke-width="1.5"/>';
+    let tramo = [];
+    const cerrarTramo = () => { if (tramo.length > 1) g += '<polyline points="' + tramo.join(' ') + '" fill="none" stroke="#8b5a2b" stroke-width="2"/>'; tramo = []; };
+    datos.forEach(d => {
+      if (d.h === null || d.h === undefined) return cerrarTramo();
+      tramo.push(X(d.x) + ',' + Y(d.h));
+    });
+    cerrarTramo();
+    g += '<text x="' + (W - 120) + '" y="' + (Y(cota) - 4) + '" font-size="11" fill="#166534">Diseño ' + cota.toFixed(2) + '</text>';
+    return '<svg viewBox="0 0 ' + W + ' ' + H + '" xmlns="http://www.w3.org/2000/svg">' + g + '</svg>';
+  }
+
+  function dibujarCortes() {
+    const cota = cotaDiseno();
+    if (cota === null) return mostrar('Escribe la cota de diseño (ej. 997.50).', true);
+    const eje = obtenerTrazo($('selEje').value);
+    if (!eje || eje.length < 2) return mostrar('Elige un eje del croquis (línea con al menos 2 puntos).', true);
+    const S = Core.superficie(estado.puntos);
+    const paso = numeroDe('pasoCalc', 0.5), inter = numeroDe('intervaloSec', 5), semi = numeroDe('semiancho', 10);
+    const per = Core.perfilLongitudinal(S, eje, cota, paso);
+    const perfilSvg = svgPerfil(per.datos.map(d => ({ x: d.s, h: d.h })), cota,
+      'Perfil longitudinal · eje ' + $('selEje').value + ' · longitud ' + per.longitud.toFixed(2) + ' m', 800, 300);
+    const secs = Core.seccionesTransversales(S, eje, cota, inter, semi, paso);
+    const seccionesHtml = secs.map(sec => svgPerfil(sec.perfil.map(p => ({ x: p.d, h: p.h })), cota,
+      'Sección en ' + sec.s.toFixed(1) + ' m · corte ' + sec.areaCorte.toFixed(2) + ' m² · relleno ' + sec.areaRelleno.toFixed(2) + ' m²', 300, 200)).join('');
+    $('graficosCortes').innerHTML = perfilSvg + '<h3>Secciones transversales</h3><div class="grid-secciones">' + seccionesHtml + '</div>';
+    mostrar('Perfil y ' + secs.length + ' secciones calculadas.');
+  }
+
+  function exportarCortes() {
+    const cota = cotaDiseno();
+    if (cota === null) return mostrar('Escribe la cota de diseño.', true);
+    const eje = obtenerTrazo($('selEje').value);
+    const zona = obtenerTrazo($('selZona').value);
+    if (!eje || eje.length < 2) return mostrar('Elige un eje del croquis.', true);
+    const S = Core.superficie(estado.puntos);
+    const paso = numeroDe('pasoCalc', 0.5), inter = numeroDe('intervaloSec', 5), semi = numeroDe('semiancho', 10);
+    const f = v => (v === null || v === undefined) ? '' : Number(v).toFixed(3);
+    const filas = [];
+    if (zona && zona.length >= 3 && zona.cerrada) {
+      const v = Core.volumenCorteRelleno(S, zona, cota, paso);
+      filas.push(['VOLUMEN', 'zona', $('selZona').value, 'cota', f(cota), 'area_m2', f(v.area), 'corte_m3', f(v.corte), 'relleno_m3', f(v.relleno), 'diferencia_m3', f(v.neto)]);
+      filas.push([]);
+    }
+    filas.push(['PERFIL', 'estacion_m', 'E', 'N', 'terreno_m', 'diseno_m']);
+    Core.perfilLongitudinal(S, eje, cota, paso).datos.forEach(d => filas.push(['PERFIL', f(d.s), f(d.E), f(d.N), f(d.h), f(cota)]));
+    filas.push([]);
+    filas.push(['SECCION', 'estacion_m', 'desplazamiento_m', 'E', 'N', 'terreno_m', 'diseno_m', 'corte_m2', 'relleno_m2']);
+    Core.seccionesTransversales(S, eje, cota, inter, semi, paso).forEach(sec => {
+      sec.perfil.forEach(p => filas.push(['SECCION', f(sec.s), f(p.d), f(p.E), f(p.N), f(p.h), f(cota), f(sec.areaCorte), f(sec.areaRelleno)]));
+    });
+    const csv = filas.map(r => r.map(x => /[",;\r\n]/.test(String(x)) ? '"' + String(x).replace(/"/g, '""') + '"' : String(x)).join(',')).join('\r\n') + '\r\n';
+    descargar(estado.nombreBase + '_cortes.csv', '\uFEFF' + csv, 'text/csv;charset=utf-8');
+    mostrar('CSV de cortes y rellenos generado.');
   }
 
   /* ---------- exportación ---------- */
@@ -680,12 +907,55 @@
       if (estado.puntos.length) regrupar();
     });
 
+    $('btnAgregarPunto').addEventListener('click', () => {
+      const num = $('addNum').value.trim();
+      const N = Number(String($('addN').value).replace(',', '.'));
+      const E = Number(String($('addE').value).replace(',', '.'));
+      const hTxt = $('addH').value.trim().replace(',', '.');
+      if (!$('addN').value.trim() || !$('addE').value.trim() || !isFinite(N) || !isFinite(E)) {
+        return mostrar('Escribe el Norte y el Este del punto.', true);
+      }
+      const h = hTxt === '' ? null : Number(hTxt);
+      if (h !== null && !isFinite(h)) return mostrar('La altura no es un número.', true);
+      const orden = estado.puntos.reduce((m, p) => Math.max(m, p.orden), -1) + 1;
+      const nombre = num !== '' ? num : String(orden + 1);
+      estado.puntos.push({ orden: orden, nombre: nombre, codigo: $('addDesc').value.trim(), N: N, E: E, h: h });
+      estado.puntos.sort((x, y) => x.orden - y.orden);
+      regrupar();
+      $('addN').value = ''; $('addE').value = ''; $('addH').value = ''; $('addNum').value = ''; $('addDesc').value = '';
+      mostrar('Punto ' + nombre + ' agregado. Total: ' + estado.puntos.length + ' puntos.');
+    });
+
     $('btnFormato').addEventListener('click', () => {
       if (!estado.puntos.length) return mostrar('No hay puntos para descargar.', true);
       descargar(estado.nombreBase + '_autocad.csv', Core.aFormatoAutocad(estado.puntos), 'text/csv;charset=utf-8');
       mostrar('Archivo en formato AutoCAD: ' + estado.puntos.length + ' puntos.');
     });
 
+    $('btnCalcVolumen').addEventListener('click', calcularVolumen);
+    $('btnDibujarZona').addEventListener('click', () => iniciarDibujo('zona'));
+    $('btnDibujarEje').addEventListener('click', () => iniciarDibujo('eje'));
+    $('btnTerminarDibujo').addEventListener('click', terminarDibujo);
+    $('btnDeshacerVertice').addEventListener('click', () => {
+      if (!estado.dibujo) return;
+      estado.dibujo.pts.pop(); actualizarEstadoDibujo(); pintarMapa();
+    });
+    $('btnCancelarDibujo').addEventListener('click', () => {
+      estado.dibujo = null; actualizarEstadoDibujo(); pintarMapa();
+      mostrar('Dibujo cancelado.');
+    });
+    $('btnBorrarTrazo').addEventListener('click', () => {
+      const nZ = $('selZona').value, nE = $('selEje').value;
+      const antes = estado.zonas.length + estado.ejes.length;
+      estado.zonas = estado.zonas.filter(t => t.nombre !== nZ);
+      estado.ejes = estado.ejes.filter(t => t.nombre !== nE);
+      const quitados = antes - estado.zonas.length - estado.ejes.length;
+      if (!quitados) return mostrar('Elige una zona o un eje dibujado para borrar.', true);
+      actualizarSelectoresCortes(); pintarMapa();
+      mostrar(quitados + ' trazo(s) borrado(s).');
+    });
+    $('btnPerfil').addEventListener('click', dibujarCortes);
+    $('btnCortesCSV').addEventListener('click', exportarCortes);
     $('btnDXF').addEventListener('click', exportarDXF);
     $('btnCSV').addEventListener('click', exportarCSV);
 

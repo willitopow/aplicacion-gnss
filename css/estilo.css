@@ -158,3 +158,11 @@ html, body { overscroll-behavior: none; }
 /* Casillas de curvas: una debajo de otra, visibles en celular */
 .casillas-curvas { display: flex; flex-direction: column; gap: 8px; width: 100%; margin: 4px 0; }
 .casillas-curvas .check { margin: 0; font-size: 1rem; }
+
+/* Cortes y rellenos */
+select.selector { padding: 4px 6px; font-size: 0.9rem; max-width: 220px; }
+.ayuda-lista { font-size: 0.9rem; color: #374151; margin: 4px 0 8px 18px; padding: 0; }
+.ayuda-lista li { margin: 2px 0; }
+#graficosCortes { margin-top: 10px; }
+#graficosCortes svg { width: 100%; height: auto; background: #fff; border: 1px solid #e5e7eb; border-radius: 6px; margin-bottom: 8px; }
+.grid-secciones { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }

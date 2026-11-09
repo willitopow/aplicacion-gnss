@@ -325,4 +325,22 @@ test('Arco: curva que pasa por los puntos (longitud mayor que la cuerda)', () =>
   assert.ok(dist(trazo[Math.floor(trazo.length / 2)], { E: 5, N: 5 }) < 0.6);   // pasa cerca del punto 2
 });
 
+test('Cortes y rellenos: terreno de 102 m sobre cota 100 en 10 x 10 m = 200 m3 de corte', () => {
+  const pts = [];
+  for (let x = -2; x <= 12; x++) for (let y = -2; y <= 12; y++) pts.push({ E: x, N: y, h: 102 });
+  const S = Core.superficie(pts);
+  const zona = [{ E: 0, N: 0 }, { E: 10, N: 0 }, { E: 10, N: 10 }, { E: 0, N: 10 }];
+  assert.ok(Math.abs(Core.volumenCorteRelleno(S, zona, 100, 0.5).corte - 200) < 1e-6);
+  assert.ok(Math.abs(Core.volumenCorteRelleno(S, zona, 104, 0.5).relleno - 200) < 1e-6);
+});
+
+test('Secciones transversales: corte de 12 m2 con 2 m de diferencia y 6 m de ancho', () => {
+  const pts = [];
+  for (let x = -10; x <= 30; x++) for (let y = -10; y <= 20; y++) pts.push({ E: x, N: y, h: 102 });
+  const S = Core.superficie(pts);
+  const sec = Core.seccionesTransversales(S, [{ E: 0, N: 0 }, { E: 20, N: 0 }], 100, 5, 3, 0.5);
+  assert.strictEqual(sec.length, 5);
+  assert.ok(Math.abs(sec[0].areaCorte - 12) < 1e-6);
+});
+
 console.log('\n' + ok + ' pruebas correctas' + (process.exitCode ? ' (hay fallos)' : ''));

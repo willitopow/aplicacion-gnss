@@ -59,6 +59,19 @@ NOMBRE / tipo / orden
 - `borde`: barrera punteada (un hueco, una caída). Se calcula su longitud.
 - `puntos`: solo los puntos.
 
+## Cortes y rellenos
+
+1. Pulsa **Dibujar zona en el plano** y marca la zona tocando el plano. Al tocar el primer punto (o pulsar **Terminar**) queda cerrada. No necesita puntos del levantamiento.
+2. Pulsa **Dibujar eje en el plano** y marca la línea por donde quieres el perfil; pulsa **Terminar** al acabar.
+   (También puedes definir zona y eje en el croquis con números de puntos.)
+3. Escribe la **cota de diseño** y pulsa **Calcular volumen**. Muestra área, corte, relleno y la diferencia.
+4. Pulsa **Perfil y secciones** para ver el perfil longitudinal y las secciones transversales (cada intervalo y ancho que escribas). El rojo es corte y el azul es relleno.
+5. **Descargar cortes (CSV)** genera el perfil, las secciones y el volumen en un archivo.
+
+Si la zona no tiene puntos medidos dentro, el terreno se calcula a partir de los puntos que la rodean: mide con el GNSS los puntos del borde de la zona y agrégalos con **Agregar un punto a mano** (sección 1). Si una parte de la zona queda sin puntos alrededor, la app lo avisa y no la cuenta.
+
+Los volúmenes se calculan sobre la superficie triangulada de los puntos con altura, con el paso de cálculo que indiques (0.5 m por defecto). Las celdas fuera del terreno medido no se cuentan y se avisan.
+
 ## Curvas de nivel
 
 - **Curvas suaves:** las curvas se suavizan para verse como trazos continuos. Ninguna vuelta del suavizado cruza un borde.

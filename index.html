@@ -9,10 +9,10 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Linderos">
-<link rel="manifest" href="manifest.webmanifest?v=32">
+<link rel="manifest" href="manifest.webmanifest?v=35">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-<link rel="stylesheet" href="css/estilo.css?v=32">
+<link rel="stylesheet" href="css/estilo.css?v=35">
 </head>
 <body>
 
@@ -41,6 +41,18 @@
     <div id="mensaje" class="ok"></div>
     <p class="ayuda">Puedes cargar el archivo tal como lo exporta el receptor (con o sin cabecera). La app lo ordena y lo trabaja en el formato de AutoCAD: número, Norte, Este, altura, descripción.</p>
     <div class="opciones"><button id="btnFormato" type="button">Descargar en formato AutoCAD</button></div>
+    <details>
+      <summary>Agregar un punto a mano (con sus coordenadas)</summary>
+      <p class="ayuda">Úsalo para los puntos del borde de una zona que mediste con el GNSS y no están en el archivo.</p>
+      <div class="opciones">
+        <label class="check">Número <input type="text" id="addNum" class="corto" inputmode="numeric"></label>
+        <label class="check">Norte <input type="text" id="addN" class="corto" inputmode="decimal"></label>
+        <label class="check">Este <input type="text" id="addE" class="corto" inputmode="decimal"></label>
+        <label class="check">Altura (m) <input type="text" id="addH" class="corto" inputmode="decimal"></label>
+        <label class="check">Descripción <input type="text" id="addDesc" class="corto"></label>
+        <button id="btnAgregarPunto" type="button">Agregar punto</button>
+      </div>
+    </details>
   </section>
 
   <section>
@@ -48,7 +60,15 @@
     <p class="ayuda">Cada código forma una capa. Elige cómo dibujarla: puntos, línea abierta (cerca, vía), polígono cerrado (lindero, casa) o círculo (fuente, con 3 o más puntos). Los puntos se unen según la columna <b>Orden de unión</b>, que sigue el croquis. Escribe los números de los puntos: <code>1-2-3-4-1</code> cierra una casa; usa <code>;</code> para separar figuras distintas dentro de la misma capa (<code>1-2-3; 5-6-7</code>). Si la celda está vacía, se unen en el orden de sus nombres.</p>
     <details open>
       <summary>Croquis: unir puntos por número</summary>
-      <p class="ayuda">Una línea por figura: <code>NOMBRE / tipo / orden</code>. Tipo: <code>polilinea</code> (se cierra si repites el primer número), <code>arco</code> (curva que pasa por los puntos), <code>circulo</code>, <code>linea</code>, <code>borde</code> o <code>puntos</code>. Los números pueden venir de cualquier código. Las líneas que empiezan con # se ignoran.</p>
+      <p class="ayuda">Una línea por figura, con este formato: <code>NOMBRE / tipo / orden</code>. El orden son los números de los puntos, separados por guiones, en el orden en que deben unirse. Los números pueden venir de cualquier código. Las líneas que empiezan con # se ignoran.</p>
+      <ul class="ayuda-lista">
+        <li><b>polilinea</b>: une los puntos en orden. Si repites el primer número al final, queda cerrada (ej. <code>LINDERO / polilinea / 1-2-3-4-1</code>).</li>
+        <li><b>arco</b>: curva suave que pasa por los puntos en orden (ej. <code>CERCA / arco / 11-12-13-14</code>).</li>
+        <li><b>circulo</b>: círculo que pasa por 3 o más puntos (ej. <code>FUENTE / circulo / 127-129-131</code>).</li>
+        <li><b>linea</b>: línea abierta entre los puntos (ej. <code>GRADAS / linea / 146-145-144</code>).</li>
+        <li><b>borde</b>: barrera para las curvas de nivel (ej. <code>BORDE LAGO / borde / 15-16-17-18-15</code>).</li>
+        <li><b>puntos</b>: solo muestra los puntos, sin unirlos.</li>
+      </ul>
       <textarea id="croquis" rows="8" placeholder="CERCA / polilinea / 10-11-12-13-10"></textarea>
       <button id="btnCroquis" type="button">Aplicar croquis</button>
       <div id="avisoCroquis" class="error"></div>
@@ -118,7 +138,44 @@
   </section>
 
   <section>
-    <h2>5. Exportar</h2>
+    <h2>5. Cortes y rellenos</h2>
+    <p class="ayuda">Dibuja la zona sobre el plano (no necesita puntos del levantamiento) y el eje por donde quieres el perfil. También puedes definirlos en el croquis con puntos. Escribe la cota de diseño y calcula.</p>
+    <div class="opciones">
+      <label class="check">Cota de diseño (m)
+        <input type="text" id="cotaDiseno" inputmode="decimal" value="" class="corto"></label>
+      <label class="check">Zona
+        <select id="selZona" class="selector"></select></label>
+      <label class="check">Eje (perfil y secciones)
+        <select id="selEje" class="selector"></select></label>
+    </div>
+    <div class="opciones">
+      <label class="check">Paso de cálculo (m)
+        <input type="text" id="pasoCalc" inputmode="decimal" value="0.5" class="corto"></label>
+      <label class="check">Secciones cada (m)
+        <input type="text" id="intervaloSec" inputmode="decimal" value="5" class="corto"></label>
+      <label class="check">Ancho a cada lado (m)
+        <input type="text" id="semiancho" inputmode="decimal" value="10" class="corto"></label>
+    </div>
+    <div class="opciones">
+      <button id="btnDibujarZona" type="button">Dibujar zona en el plano</button>
+      <button id="btnDibujarEje" type="button">Dibujar eje en el plano</button>
+      <button id="btnDeshacerVertice" type="button">Deshacer punto</button>
+      <button id="btnTerminarDibujo" type="button" class="primario">Terminar</button>
+      <button id="btnCancelarDibujo" type="button">Cancelar</button>
+      <button id="btnBorrarTrazo" type="button" class="borrar">Borrar zona/eje elegido</button>
+    </div>
+    <div id="estadoDibujo" class="ayuda"></div>
+    <div class="opciones">
+      <button id="btnCalcVolumen" type="button" class="primario">Calcular volumen</button>
+      <button id="btnPerfil" type="button">Perfil y secciones</button>
+      <button id="btnCortesCSV" type="button">Descargar cortes (CSV)</button>
+    </div>
+    <div id="resumenVolumen" class="resumen"></div>
+    <div id="graficosCortes"></div>
+  </section>
+
+  <section>
+    <h2>6. Exportar</h2>
     <div class="opciones">
       <label class="check"><input type="checkbox" id="chkCurvasDXF"> Incluir curvas de nivel</label>
       <button id="btnDXF" type="button" class="primario">Exportar DXF</button>
@@ -135,11 +192,11 @@
 
 <footer>
   <button id="btnInstalar" type="button" hidden>Instalar en este dispositivo</button>
-  <p>Código abierto · Licencia MIT · Versión 32</p>
+  <p>Código abierto · Licencia MIT · Versión 35</p>
 </footer>
 
-<script src="js/core.js?v=32"></script>
-<script src="js/app.js?v=32"></script>
+<script src="js/core.js?v=35"></script>
+<script src="js/app.js?v=35"></script>
 <script>
   // Registro del service worker (requiere https o localhost)
   if ('serviceWorker' in navigator) {
