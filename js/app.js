@@ -953,14 +953,34 @@
       mostrar('Dibujo cancelado.');
     });
     $('btnBorrarTrazo').addEventListener('click', () => {
-      const nZ = $('selZona').value, nE = $('selEje').value;
-      const antes = estado.zonas.length + estado.ejes.length;
-      estado.zonas = estado.zonas.filter(t => t.nombre !== nZ);
-      estado.ejes = estado.ejes.filter(t => t.nombre !== nE);
-      const quitados = antes - estado.zonas.length - estado.ejes.length;
-      if (!quitados) return mostrar('Elige una zona o un eje dibujado para borrar.', true);
-      actualizarSelectoresCortes(); pintarMapa();
-      mostrar(quitados + ' trazo(s) borrado(s).');
+      const elegidos = [$('selZona').value, $('selEje').value].filter((v, i, arr) => v && arr.indexOf(v) === i);
+      if (!elegidos.length) return avisoCortes('No hay zona ni eje elegido. Elígelo en la lista de arriba.', true);
+      let n = 0;
+      elegidos.forEach(nombre => {
+        // Zonas y ejes dibujados en el plano
+        const antes = estado.zonas.length + estado.ejes.length;
+        estado.zonas = estado.zonas.filter(t => t.nombre !== nombre);
+        estado.ejes = estado.ejes.filter(t => t.nombre !== nombre);
+        n += antes - (estado.zonas.length + estado.ejes.length);
+        // Figuras del croquis con ese nombre: se quita su línea del cuadro
+        const lineas = $('croquis').value.split(/\r?\n/);
+        const nuevas = lineas.filter(l => {
+          const t = l.trim();
+          if (!t || t.charAt(0) === '#') return true;
+          const nom = t.split(/[\/|]/)[0].trim().toUpperCase();
+          if (nom === nombre.toUpperCase()) { n++; return false; }
+          return true;
+        });
+        if (nuevas.length !== lineas.length) {
+          $('croquis').value = nuevas.join('\n');
+          estado.croquis = $('croquis').value;
+        }
+      });
+      if (!n) return avisoCortes('No encontré esa zona o eje en el plano ni en el croquis.', true);
+      regrupar();
+      actualizarSelectoresCortes();
+      pintarMapa();
+      avisoCortes(n + ' elemento(s) borrado(s): ' + elegidos.join(', ') + '.', false);
     });
     $('btnPerfil').addEventListener('click', dibujarCortes);
     $('btnCortesCSV').addEventListener('click', exportarCortes);
