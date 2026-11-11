@@ -653,6 +653,8 @@
   function avisoCortes(texto, error) {
     const box = $('resumenVolumen');
     box.innerHTML = '<span class="' + (error ? 'error' : 'ok') + '">' + esc(texto) + '</span>';
+    // Abre la sección que contiene el mensaje para que se vea aunque esté cerrada
+    for (let el = box; el; el = el.parentElement) { if (el.tagName === 'DETAILS') el.open = true; }
     box.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
