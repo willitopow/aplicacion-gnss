@@ -654,8 +654,7 @@
     const box = $('resumenVolumen');
     box.innerHTML = '<span class="' + (error ? 'error' : 'ok') + '">' + esc(texto) + '</span>';
     // Abre la sección que contiene el mensaje para que se vea aunque esté cerrada
-    for (let el = box; el; el = el.parentElement) { if (el.tagName === 'DETAILS') el.open = true; }
-    box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (window.verPanel) window.verPanel('panel-resultado');
   }
 
   function numeroDe(id, defecto) {
@@ -692,7 +691,7 @@
              'Mide con el GNSS los puntos del borde de la zona y agrégalos (sección 1) o en el croquis.</span>';
     }
     $('resumenVolumen').innerHTML = txt;
-    $('resumenVolumen').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (window.verPanel) window.verPanel('panel-resultado');
   }
 
   // Gráfico SVG: terreno, cota de diseño y áreas de corte (rojo) y relleno (azul)
@@ -745,8 +744,8 @@
     const seccionesHtml = secs.map(sec => svgPerfil(sec.perfil.map(p => ({ x: p.d, h: p.h })), cota,
       'Sección en ' + sec.s.toFixed(1) + ' m · corte ' + sec.areaCorte.toFixed(2) + ' m² · relleno ' + sec.areaRelleno.toFixed(2) + ' m²', 300, 200)).join('');
     $('graficosCortes').innerHTML = perfilSvg + '<h3>Secciones transversales</h3><div class="grid-secciones">' + seccionesHtml + '</div>';
-    $('resumenVolumen').innerHTML = '<span class="ok">Perfil y ' + secs.length + ' secciones calculados (más abajo).</span>';
-    $('graficosCortes').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    $('resumenVolumen').innerHTML = '<span class="ok">Perfil y ' + secs.length + ' secciones calculados.</span>';
+    if (window.verPanel) window.verPanel('panel-resultado');
   }
 
   function exportarCortes() {

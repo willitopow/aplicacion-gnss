@@ -5,241 +5,220 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Linderos GNSS</title>
 <meta name="description" content="Dibuja linderos, curvas de nivel y cortes desde puntos GNSS">
-<meta name="theme-color" content="#1e3a8a">
+<meta name="theme-color" content="#2b3645">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Linderos">
-<link rel="manifest" href="manifest.webmanifest?v=38">
+<link rel="manifest" href="manifest.webmanifest?v=40">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-<link rel="stylesheet" href="css/estilo.css?v=38">
+<link rel="stylesheet" href="css/estilo.css?v=40">
 </head>
 <body>
 <div class="app">
 
-  <header class="barra">
+  <!-- ===== Pestañas (arriba, como en AutoCAD) ===== -->
+  <nav class="pestanas" role="tablist">
     <div class="marca"><span class="logo">◆</span> Linderos GNSS</div>
+    <button class="pestana" data-tab="inicio" type="button">Inicio</button>
+    <button class="pestana" data-tab="puntos" type="button">Puntos</button>
+    <button class="pestana" data-tab="croquis" type="button">Croquis</button>
+    <button class="pestana" data-tab="curvas" type="button">Curvas de nivel</button>
+    <button class="pestana" data-tab="volumen" type="button">Corte y volumen</button>
+    <button class="pestana" data-tab="perfiles" type="button">Perfiles</button>
+    <button class="pestana" data-tab="exportar" type="button">Exportar</button>
     <div class="barra-der">
-      <span class="version">Versión 38</span>
+      <span class="version">Versión 40</span>
       <button id="btnInstalar" type="button" class="btn-pequeno" hidden>Instalar</button>
     </div>
-  </header>
+  </nav>
 
-  <main class="principal">
+  <!-- ===== Cinta de botones de la pestaña activa ===== -->
+  <div class="cinta">
 
-    <!-- ================= PLANO ================= -->
-    <section class="mapa-wrap">
-      <svg id="mapa" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet"></svg>
-
-      <div class="flotantes-mapa">
-        <button id="btnVista" type="button" class="chip">Ajustar vista</button>
-        <label class="chip chip-check"><input type="checkbox" id="chkEtqPts" checked> Nombres</label>
-        <label class="chip chip-check"><input type="checkbox" id="chkEtqArea" checked> Áreas</label>
+    <div class="grupo" data-tab="inicio">
+      <div class="botones">
+        <label class="boton grande boton-archivo"><span class="ico-b">📂</span>Importar<br>archivo
+          <input type="file" id="archivo" accept=".csv,.txt,.tsv,.xls,.xlsx,.xlsm" hidden></label>
+        <button type="button" class="boton grande" data-panel="panel-pegar"><span class="ico-b">📋</span>Pegar<br>texto</button>
+        <button type="button" class="boton grande" data-panel="panel-agregar"><span class="ico-b">➕</span>Agregar<br>punto</button>
       </div>
+      <div class="titulo-grupo">Datos</div>
+    </div>
+    <div class="grupo" data-tab="inicio">
+      <div class="botones">
+        <button id="btnVista" type="button" class="boton grande"><span class="ico-b">⛶</span>Ajustar<br>vista</button>
+        <label class="boton check-b"><input type="checkbox" id="chkEtqPts" checked> Nombres</label>
+        <label class="boton check-b"><input type="checkbox" id="chkEtqArea" checked> Áreas</label>
+      </div>
+      <div class="titulo-grupo">Plano</div>
+    </div>
 
-      <div id="estadoDibujo" class="estado-dibujo"></div>
-      <div id="mensaje" class="toast" role="status"></div>
+    <div class="grupo" data-tab="puntos" hidden>
+      <div class="botones">
+        <button type="button" class="boton grande" data-panel="panel-puntos"><span class="ico-b">📍</span>Lista de<br>puntos</button>
+        <button id="btnRestaurar" type="button" class="boton grande"><span class="ico-b">↩️</span>Restaurar<br>borrados</button>
+        <label class="boton check-b"><input type="checkbox" id="chkQuitar"> Agrupar ZV1→ZV</label>
+      </div>
+      <div class="titulo-grupo">Puntos</div>
+    </div>
 
-      <div id="panelPunto" class="panel-punto" hidden>
-        <div class="panel-titulo">Punto <b id="selNum"></b> · E <span id="selE"></span> · N <span id="selN"></span></div>
-        <div class="fila">
-          <label class="campo">Altura h (m)
-            <input type="text" id="selH" inputmode="decimal" class="altura"></label>
-        </div>
-        <div class="fila">
-          <button id="btnSelAplicar" type="button" class="primario">Cambiar altura</button>
-          <button id="btnSelBorrar" type="button" class="borrar">Borrar punto</button>
-          <button id="btnSelCerrar" type="button">Cerrar</button>
-        </div>
+    <div class="grupo" data-tab="croquis" hidden>
+      <div class="botones">
+        <button type="button" class="boton grande" data-panel="panel-croquis"><span class="ico-b">✏️</span>Escribir<br>figuras</button>
+        <button type="button" class="boton grande" data-panel="panel-capas"><span class="ico-b">🗂️</span>Ver<br>capas</button>
+        <button id="btnQuitarFiguras" type="button" class="boton grande peligro"><span class="ico-b">🗑️</span>Quitar<br>figuras</button>
+      </div>
+      <div class="titulo-grupo">Croquis</div>
+    </div>
+
+    <div class="grupo" data-tab="curvas" hidden>
+      <div class="botones">
+        <label class="boton campo-b">Equidistancia (m)
+          <input type="text" id="equi" inputmode="decimal" value="1"></label>
+        <button type="button" class="boton eq" data-eq="0.1">0.1</button>
+        <button type="button" class="boton eq" data-eq="0.2">0.2</button>
+        <button type="button" class="boton eq" data-eq="0.5">0.5</button>
+        <button type="button" class="boton eq" data-eq="1">1</button>
+        <label class="boton check-b"><input type="checkbox" id="chkCurvas"> Mostrar curvas</label>
+        <label class="boton check-b"><input type="checkbox" id="chkSuave" checked> Suaves</label>
+        <label class="boton check-b"><input type="checkbox" id="chkAlturas" checked> Altura en puntos</label>
+      </div>
+      <div id="resumenCurvas" class="resumen-linea"></div>
+      <div class="titulo-grupo">Curvas de nivel</div>
+    </div>
+
+    <div class="grupo" data-tab="volumen" hidden>
+      <div class="botones">
+        <button id="btnDibujarZona" type="button" class="boton grande primario"><span class="ico-b">⬚</span>Dibujar<br>zona</button>
+        <button id="btnDeshacerVertice" type="button" class="boton">Deshacer<br>punto</button>
+        <button id="btnTerminarDibujo" type="button" class="boton">Terminar</button>
+        <button id="btnCancelarDibujo" type="button" class="boton">Cancelar</button>
+        <label class="boton campo-b">Zona
+          <select id="selZona" class="selector"></select></label>
+        <button id="btnBorrarTrazo" type="button" class="boton peligro">Borrar<br>zona</button>
+        <label class="boton campo-b">Cota de diseño (m)
+          <input type="text" id="cotaDiseno" inputmode="decimal" placeholder="997.50"></label>
+        <label class="boton campo-b">Paso (m)
+          <input type="text" id="pasoCalc" inputmode="decimal" value="0.5"></label>
+        <button id="btnCalcVolumen" type="button" class="boton grande primario" data-resultado="1"><span class="ico-b">∑</span>Calcular<br>volumen</button>
+      </div>
+      <div class="titulo-grupo">Corte y relleno</div>
+    </div>
+
+    <div class="grupo" data-tab="perfiles" hidden>
+      <div class="botones">
+        <button id="btnDibujarEje" type="button" class="boton grande primario"><span class="ico-b">📏</span>Dibujar<br>eje</button>
+        <label class="boton campo-b">Eje
+          <select id="selEje" class="selector"></select></label>
+        <label class="boton campo-b">Secciones cada (m)
+          <input type="text" id="intervaloSec" inputmode="decimal" value="5"></label>
+        <label class="boton campo-b">Ancho a cada lado (m)
+          <input type="text" id="semiancho" inputmode="decimal" value="10"></label>
+        <button id="btnPerfil" type="button" class="boton grande primario" data-resultado="1"><span class="ico-b">〰️</span>Perfil y<br>secciones</button>
+      </div>
+      <div class="titulo-grupo">Perfiles</div>
+    </div>
+
+    <div class="grupo" data-tab="exportar" hidden>
+      <div class="botones">
+        <button id="btnDXF" type="button" class="boton grande primario"><span class="ico-b">💾</span>DXF</button>
+        <label class="boton check-b"><input type="checkbox" id="chkCurvasDXF"> Con curvas</label>
+        <button id="btnCSV" type="button" class="boton">Resultados<br>CSV</button>
+        <button id="btnFormato" type="button" class="boton">Puntos formato<br>AutoCAD</button>
+        <button id="btnCortesCSV" type="button" class="boton">Cortes<br>CSV</button>
+      </div>
+      <div class="titulo-grupo">Exportar</div>
+    </div>
+
+  </div>
+
+  <!-- ===== Dibujo: ocupa todo lo que queda de la ventana ===== -->
+  <main class="lienzo">
+    <svg id="mapa" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet"></svg>
+
+    <div id="estadoDibujo" class="estado-dibujo"></div>
+    <div id="mensaje" class="toast" role="status"></div>
+
+    <div id="panelPunto" class="panel-punto" hidden>
+      <div class="panel-titulo">Punto <b id="selNum"></b> · E <span id="selE"></span> · N <span id="selN"></span></div>
+      <div class="fila">
+        <label class="campo">Altura h (m)
+          <input type="text" id="selH" inputmode="decimal" class="altura"></label>
+      </div>
+      <div class="fila">
+        <button id="btnSelAplicar" type="button" class="primario">Cambiar altura</button>
+        <button id="btnSelBorrar" type="button" class="borrar">Borrar punto</button>
+        <button id="btnSelCerrar" type="button">Cerrar</button>
+      </div>
+    </div>
+
+    <!-- Paneles flotantes: solo aparecen cuando los pides -->
+    <section id="panel-puntos" class="flotante" hidden>
+      <header><b>Lista de puntos</b><button type="button" class="cerrar-panel">✕</button></header>
+      <p class="ayuda">Cambia la altura o borra un punto. Las curvas se recalculan solas.</p>
+      <div class="tabla-alturas">
+        <table>
+          <thead><tr><th>Punto</th><th>E</th><th>N</th><th>Altura h</th><th></th></tr></thead>
+          <tbody id="tbodyAlturas"></tbody>
+        </table>
       </div>
     </section>
 
-    <!-- ================= PANEL DE SECCIONES ================= -->
-    <aside class="panel">
+    <section id="panel-capas" class="flotante ancho" hidden>
+      <header><b>Capas</b><button type="button" class="cerrar-panel">✕</button></header>
+      <div class="tabla-capas">
+        <table>
+          <thead>
+            <tr><th>Ver</th><th>Capa</th><th>Tipo</th><th>Puntos</th><th>Área m²</th><th>Ha</th><th>Perím./Long. m</th><th>Orden de unión</th><th>Aviso</th></tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+      <div id="resumen" class="resumen"></div>
+    </section>
 
-      <details class="sec" id="sec-puntos">
-        <summary><span class="ico">📍</span> Puntos <small>importar · editar · exportar · borrar</small></summary>
-        <div class="cuerpo">
-          <div class="fila">
-            <label class="boton-archivo">Importar archivo del receptor
-              <input type="file" id="archivo" accept=".csv,.txt,.tsv,.xls,.xlsx,.xlsm" hidden></label>
-          </div>
+    <section id="panel-resultado" class="flotante ancho" hidden>
+      <header><b>Resultado</b><button type="button" class="cerrar-panel">✕</button></header>
+      <div id="resumenVolumen" class="resumen"></div>
+      <div id="graficosCortes" class="graficos"></div>
+    </section>
 
-          <details class="sub">
-            <summary>Pegar datos como texto</summary>
-            <textarea id="pegado" rows="4" placeholder="1,868022.866,1058917.907,992.081,edificio"></textarea>
-            <div class="fila"><button id="btnPegado" type="button">Procesar texto</button></div>
-          </details>
+    <section id="panel-pegar" class="flotante" hidden>
+      <header><b>Pegar datos como texto</b><button type="button" class="cerrar-panel">✕</button></header>
+      <textarea id="pegado" rows="6" placeholder="1,868022.866,1058917.907,992.081,edificio"></textarea>
+      <div class="fila"><button id="btnPegado" type="button" class="primario">Procesar texto</button></div>
+    </section>
 
-          <details class="sub">
-            <summary>Agregar un punto a mano</summary>
-            <div class="rejilla">
-              <label class="campo">Número <input type="text" id="addNum" inputmode="numeric"></label>
-              <label class="campo">Descripción <input type="text" id="addDesc"></label>
-              <label class="campo">Norte <input type="text" id="addN" inputmode="decimal"></label>
-              <label class="campo">Este <input type="text" id="addE" inputmode="decimal"></label>
-              <label class="campo">Altura (m) <input type="text" id="addH" inputmode="decimal"></label>
-            </div>
-            <div class="fila"><button id="btnAgregarPunto" type="button" class="primario">Agregar punto</button></div>
-          </details>
+    <section id="panel-agregar" class="flotante" hidden>
+      <header><b>Agregar un punto</b><button type="button" class="cerrar-panel">✕</button></header>
+      <div class="rejilla">
+        <label class="campo">Número <input type="text" id="addNum" inputmode="numeric"></label>
+        <label class="campo">Descripción <input type="text" id="addDesc"></label>
+        <label class="campo">Norte <input type="text" id="addN" inputmode="decimal"></label>
+        <label class="campo">Este <input type="text" id="addE" inputmode="decimal"></label>
+        <label class="campo">Altura (m) <input type="text" id="addH" inputmode="decimal"></label>
+      </div>
+      <div class="fila"><button id="btnAgregarPunto" type="button" class="primario">Agregar punto</button></div>
+    </section>
 
-          <details class="sub" open>
-            <summary>Lista de puntos (editar y borrar)</summary>
-            <p class="ayuda">Cambia la altura en la lista o toca un punto en el plano. Las curvas se recalculan solas.</p>
-            <div class="tabla-alturas">
-              <table>
-                <thead><tr><th>Punto</th><th>E</th><th>N</th><th>Altura h</th><th></th></tr></thead>
-                <tbody id="tbodyAlturas"></tbody>
-              </table>
-            </div>
-            <div class="fila">
-              <button id="btnRestaurar" type="button">Restaurar puntos borrados</button>
-            </div>
-          </details>
+    <section id="panel-croquis" class="flotante ancho" hidden>
+      <header><b>Figuras del croquis</b><button type="button" class="cerrar-panel">✕</button></header>
+      <p class="ayuda">Una línea por figura: <code>NOMBRE / tipo / orden</code>. Tipos: <code>polilinea</code> (cerrada si repites el primero), <code>arco</code>, <code>circulo</code>, <code>linea</code>, <code>borde</code>, <code>puntos</code>.</p>
+      <textarea id="croquis" rows="6" placeholder="FUENTE / circulo / 127-128-129-130-131-132"></textarea>
+      <div class="fila">
+        <button id="btnCroquis" type="button" class="primario">Dibujar figuras</button>
+      </div>
+      <div id="avisoCroquis" class="error"></div>
+    </section>
 
-          <details class="sub">
-            <summary>Opciones de agrupación</summary>
-            <label class="check"><input type="checkbox" id="chkQuitar">
-              Cada código es una figura; el número se quita para el layer (ZV1, ZV2 → capa ZV)</label>
-          </details>
-
-          <div id="mensajeCorto" class="nota">Los puntos se ven en el plano. Para descargarlos en formato AutoCAD, ve a <b>Exportar</b>.</div>
-        </div>
-      </details>
-
-      <details class="sec" id="sec-croquis">
-        <summary><span class="ico">✏️</span> Crear figuras (croquis) <small>polilínea · arco · círculo · línea · borde</small></summary>
-        <div class="cuerpo">
-          <p class="ayuda">Una línea por figura: <code>NOMBRE / tipo / orden</code>. El orden son los números de los puntos, separados por guiones.</p>
-          <ul class="ayuda-lista">
-            <li><b>polilinea</b>: une los puntos en orden. Si repites el primer número, queda cerrada (<code>LINDERO / polilinea / 1-2-3-4-1</code>).</li>
-            <li><b>arco</b>: curva suave que pasa por los puntos (<code>CERCA / arco / 11-12-13-14</code>).</li>
-            <li><b>circulo</b>: círculo por 3 o más puntos (<code>FUENTE / circulo / 127-129-131</code>).</li>
-            <li><b>linea</b>: línea abierta (<code>GRADAS / linea / 146-145-144</code>).</li>
-            <li><b>borde</b>: barrera para las curvas (<code>BORDE LAGO / borde / 15-16-17-18-15</code>).</li>
-            <li><b>puntos</b>: solo muestra los puntos.</li>
-          </ul>
-          <textarea id="croquis" rows="7" placeholder="FUENTE / circulo / 127-128-129-130-131-132"></textarea>
-          <div class="fila">
-            <button id="btnCroquis" type="button" class="primario">Dibujar figuras</button>
-            <button id="btnQuitarFiguras" type="button" class="borrar">Quitar figuras</button>
-          </div>
-          <div id="avisoCroquis" class="error"></div>
-
-          <details class="sub" open>
-            <summary>Capas</summary>
-            <div class="tabla-capas">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Ver</th><th>Capa</th><th>Tipo</th><th>Puntos</th>
-                    <th>Área m²</th><th>Ha</th><th>Perím./Long. m</th><th>Orden de unión</th><th>Aviso</th>
-                  </tr>
-                </thead>
-                <tbody id="tbody"></tbody>
-              </table>
-            </div>
-            <div id="resumen" class="resumen"></div>
-          </details>
-        </div>
-      </details>
-
-      <details class="sec" id="sec-curvas">
-        <summary><span class="ico">🗺️</span> Crear curvas de nivel <small>equidistancia · suaves · acotadas</small></summary>
-        <div class="cuerpo">
-          <div class="fila">
-            <label class="campo corto-campo">Equidistancia (m)
-              <input type="text" id="equi" inputmode="decimal" value="1"></label>
-          </div>
-          <div class="fila rapidas">
-            <button type="button" class="eq" data-eq="0.1">0.1</button>
-            <button type="button" class="eq" data-eq="0.2">0.2</button>
-            <button type="button" class="eq" data-eq="0.5">0.5</button>
-            <button type="button" class="eq" data-eq="1">1</button>
-          </div>
-          <div class="casillas">
-            <label class="check"><input type="checkbox" id="chkCurvas"> Mostrar curvas en el plano</label>
-            <label class="check"><input type="checkbox" id="chkSuave" checked> Curvas suaves</label>
-            <label class="check"><input type="checkbox" id="chkAlturas" checked> Altura en cada punto</label>
-          </div>
-          <div id="resumenCurvas" class="resumen"></div>
-        </div>
-      </details>
-
-      <details class="sec" id="sec-volumen">
-        <summary><span class="ico">⛏️</span> Crear zona de corte y volumen <small>dibuja la zona en el plano</small></summary>
-        <div class="cuerpo">
-          <p class="ayuda">Toca el plano para marcar la zona. Al tocar el primer punto se cierra. No necesita puntos del levantamiento.</p>
-          <div class="fila">
-            <button id="btnDibujarZona" type="button" class="primario">Dibujar zona</button>
-            <button id="btnDeshacerVertice" type="button">Deshacer punto</button>
-            <button id="btnTerminarDibujo" type="button">Terminar</button>
-            <button id="btnCancelarDibujo" type="button">Cancelar</button>
-          </div>
-          <div class="fila">
-            <label class="campo">Zona
-              <select id="selZona" class="selector"></select></label>
-            <button id="btnBorrarTrazo" type="button" class="borrar">Borrar zona elegida</button>
-          </div>
-          <div class="fila">
-            <label class="campo">Cota de diseño (m)
-              <input type="text" id="cotaDiseno" inputmode="decimal" placeholder="ej. 997.50"></label>
-            <label class="campo">Paso de cálculo (m)
-              <input type="text" id="pasoCalc" inputmode="decimal" value="0.5"></label>
-          </div>
-          <div class="fila">
-            <button id="btnCalcVolumen" type="button" class="primario">Calcular volumen</button>
-          </div>
-          <div id="resumenVolumen" class="resumen"></div>
-        </div>
-      </details>
-
-      <details class="sec" id="sec-perfiles">
-        <summary><span class="ico">📏</span> Crear perfiles <small>corte longitudinal · secciones</small></summary>
-        <div class="cuerpo">
-          <p class="ayuda">Dibuja el eje en el plano (botón abajo) y escribe la cota de diseño en Crear zona de corte.</p>
-          <div class="fila">
-            <button id="btnDibujarEje" type="button" class="primario">Dibujar eje</button>
-          </div>
-          <div class="fila">
-            <label class="campo">Eje
-              <select id="selEje" class="selector"></select></label>
-          </div>
-          <div class="fila">
-            <label class="campo">Secciones cada (m)
-              <input type="text" id="intervaloSec" inputmode="decimal" value="5"></label>
-            <label class="campo">Ancho a cada lado (m)
-              <input type="text" id="semiancho" inputmode="decimal" value="10"></label>
-          </div>
-          <div class="fila">
-            <button id="btnPerfil" type="button" class="primario">Perfil y secciones</button>
-          </div>
-          <div id="graficosCortes" class="graficos"></div>
-        </div>
-      </details>
-
-      <details class="sec" id="sec-exportar">
-        <summary><span class="ico">💾</span> Exportar</summary>
-        <div class="cuerpo">
-          <div class="fila">
-            <button id="btnDXF" type="button" class="primario">Exportar DXF</button>
-            <button id="btnCSV" type="button">Resultados CSV</button>
-          </div>
-          <label class="check"><input type="checkbox" id="chkCurvasDXF"> Incluir curvas de nivel en el DXF</label>
-          <div class="fila">
-            <button id="btnFormato" type="button">Puntos formato AutoCAD</button>
-            <button id="btnCortesCSV" type="button">Cortes CSV</button>
-          </div>
-          <p class="ayuda">DWG: exporta DXF y conviértelo en AutoCAD o con ODA File Converter.</p>
-        </div>
-      </details>
-
-    </aside>
   </main>
+
 </div>
 
-<script src="js/core.js?v=38"></script>
-<script src="js/app.js?v=38"></script>
+<script src="js/core.js?v=40"></script>
+<script src="js/app.js?v=40"></script>
+<script src="js/ui.js?v=40"></script>
 <script>
   // Registro del service worker (requiere https o localhost)
   if ('serviceWorker' in navigator) {
