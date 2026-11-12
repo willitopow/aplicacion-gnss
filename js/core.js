@@ -978,14 +978,16 @@
   // Los puntos del borde conservan su altura natural (para que el talud quede bien) y los puntos
   // medidos dentro de la zona se reemplazan por la superficie nueva.
   function terrenoConExcavaciones(puntos, excavaciones) {
-    let base = puntos.filter(p => p.h !== null && p.h !== undefined && isFinite(p.h));
-    (excavaciones || []).forEach(ex => {
+    const orig = puntos.filter(p => p.h !== null && p.h !== undefined && isFinite(p.h));
+    const superf = superficie(orig);            // altura natural de cada zona (independiente de las demás)
+    const lista = excavaciones || [];
+    // Se quitan los puntos medidos que caen dentro de cualquier zona excavada
+    let base = orig.filter(p => !lista.some(ex => dentroDePoligono(p.E, p.N, ex.poly)));
+    lista.forEach(ex => {
       const poly = ex.poly;
       const paso = ex.paso > 0 ? ex.paso : 0.5;
-      const superf = superficie(base);
       const minE = Math.min.apply(null, poly.map(q => q.E)), maxE = Math.max.apply(null, poly.map(q => q.E));
       const minN = Math.min.apply(null, poly.map(q => q.N)), maxN = Math.max.apply(null, poly.map(q => q.N));
-      base = base.filter(p => !dentroDePoligono(p.E, p.N, poly));
       const nuevos = [];
       for (let i = 0; i < poly.length; i++) {
         const a = poly[i], b = poly[(i + 1) % poly.length];

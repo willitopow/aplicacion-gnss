@@ -578,11 +578,12 @@
   function actualizarSelectoresCortes() {
     const sz = $('selZona'), se = $('selEje');
     const zonaAnt = sz.value, ejeAnt = se.value;
-    const zonasCroquis = estado.capas.filter(c => c.croquis && c.tipo === 'polilinea' && Core.figuras(c).figs.some(f => f.cerrada)).map(c => c.nombre);
+    // Zonas: solo las que se crean picando en el plano (no las figuras cerradas del croquis)
+    const zonas = estado.zonas.map(t => t.nombre);
     const ejesCroquis = estado.capas.filter(c => c.croquis && (c.tipo === 'linea' || c.tipo === 'arco' || c.tipo === 'polilinea')).map(c => c.nombre);
-    const zonas = estado.zonas.map(t => t.nombre).concat(zonasCroquis);
     const ejes = estado.ejes.map(t => t.nombre).concat(ejesCroquis);
-    sz.innerHTML = zonas.map(n => '<option value="' + esc(n) + '">' + esc(n) + '</option>').join('');
+    sz.innerHTML = zonas.map(n => '<option value="' + esc(n) + '">' + esc(n) +
+      (estado.excavaciones.some(e => e.nombre === n) ? ' (excavada)' : '') + '</option>').join('');
     se.innerHTML = ejes.map(n => '<option value="' + esc(n) + '">' + esc(n) + '</option>').join('');
     if (zonas.indexOf(zonaAnt) >= 0) sz.value = zonaAnt;
     if (ejes.indexOf(ejeAnt) >= 0) se.value = ejeAnt;
@@ -661,6 +662,12 @@
     if (window.verPanel) window.verPanel('panel-resultado');
   }
 
+  // Zona de volumen: solo las dibujadas en el plano
+  function zonaElegida() {
+    const z = estado.zonas.find(t => t.nombre === $('selZona').value);
+    return z ? z.poly : null;
+  }
+
   function numeroDe(id, defecto) {
     const v = Number(String($(id).value).replace(',', '.'));
     return isFinite(v) && v > 0 ? v : defecto;
@@ -691,7 +698,7 @@
   function calcularVolumen() {
     const cota = cotaDiseno();
     if (cota === null) return avisoCortes('Escribe la cota de diseño (ej. 997.50) en el recuadro de arriba de esta sección.', true);
-    const zona = obtenerTrazo($('selZona').value);
+    const zona = zonaElegida();
     if (!zona || zona.length < 3 || !zona.cerrada) return avisoCortes('Primero dibuja una zona en el plano (botón Dibujar zona) y elígela en Zona.', true);
     const S = Core.superficie(estado.puntos);
     const r = Core.volumenCorteRelleno(S, zona, cota, numeroDe('pasoCalc', 0.5));
@@ -769,7 +776,7 @@
     const cota = cotaDiseno();
     if (cota === null) return avisoCortes('Escribe la cota de diseño.', true);
     const eje = obtenerTrazo($('selEje').value);
-    const zona = obtenerTrazo($('selZona').value);
+    const zona = zonaElegida();
     if (!eje || eje.length < 2) return avisoCortes('Primero dibuja un eje en el plano.', true);
     const S = Core.superficie(estado.puntos);
     const paso = numeroDe('pasoCalc', 0.5), inter = numeroDe('intervaloSec', 5), semi = numeroDe('semiancho', 10);
@@ -970,7 +977,7 @@
     $('btnAplicarExc').addEventListener('click', () => {
       const cota = cotaDiseno();
       if (cota === null) return avisoCortes('Escribe la cota de diseño antes de aplicar la excavación.', true);
-      const zona = obtenerTrazo($('selZona').value);
+      const zona = zonaElegida();
       if (!zona || zona.length < 3 || !zona.cerrada) return avisoCortes('Elige una zona cerrada (Dibujar zona) antes de aplicar la excavación.', true);
       const nombre = $('selZona').value;
       estado.excavaciones = estado.excavaciones.filter(e => e.nombre !== nombre);
@@ -980,10 +987,13 @@
       avisoCortes('Excavación aplicada en ' + nombre + ' a ' + cota.toFixed(2) + ' m. Las curvas ya son del terreno nuevo.', false);
     });
     $('btnQuitarExc').addEventListener('click', () => {
-      if (!estado.excavaciones.length) return avisoCortes('No hay excavaciones aplicadas.', true);
-      estado.excavaciones = [];
+      const nombre = $('selZona').value;
+      if (!nombre) return avisoCortes('Elige una zona para quitar su excavación.', true);
+      const antes = estado.excavaciones.length;
+      estado.excavaciones = estado.excavaciones.filter(e => e.nombre !== nombre);
+      if (estado.excavaciones.length === antes) return avisoCortes(nombre + ' no está excavada.', true);
       refrescar();
-      avisoCortes('Excavaciones quitadas. Las curvas vuelven al terreno original.', false);
+      avisoCortes('Se quitó la excavación de ' + nombre + '. Las demás zonas no cambian.', false);
     });
     $('btnDibujarZona').addEventListener('click', () => iniciarDibujo('zona'));
     $('btnDibujarEje').addEventListener('click', () => iniciarDibujo('eje'));
