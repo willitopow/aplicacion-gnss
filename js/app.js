@@ -640,7 +640,8 @@
     actualizarEstadoDibujo();
     actualizarSelectoresCortes();
     pintarMapa();
-    mostrar(nombre + ' guardada. Elígela en la sección 5 para calcular.');
+    mostrar(nombre + ' guardada.');
+    if (d.tipo === 'zona') mostrarCoordenadas(nombre);
   }
 
   // Trazo por nombre: primero los dibujados en el plano, luego los del croquis
@@ -675,6 +676,16 @@
   function cotaDiseno() {
     const v = Number(String($('cotaDiseno').value).replace(',', '.'));
     return ($('cotaDiseno').value.trim() !== '' && isFinite(v)) ? v : null;
+  }
+
+  // Tabla con los vértices de una zona dibujada o del croquis
+  function mostrarCoordenadas(nombre) {
+    const zona = obtenerTrazo(nombre);
+    if (!zona || zona.length < 2) return avisoCortes('Elige una zona (o dibújala) para ver sus coordenadas.', true);
+    const filas = zona.map((p, i) => '<tr><td>' + (i + 1) + '</td><td>' + p.E.toFixed(3) + '</td><td>' + p.N.toFixed(3) + '</td></tr>').join('');
+    $('resumenVolumen').innerHTML = '<b>Coordenadas de ' + esc(nombre) + '</b> (' + zona.length + ' vértices)' +
+      '<div class="tabla-alturas"><table><thead><tr><th>Vértice</th><th>Este (E)</th><th>Norte (N)</th></tr></thead><tbody>' + filas + '</tbody></table></div>';
+    if (window.verPanel) window.verPanel('panel-resultado');
   }
 
   function calcularVolumen() {
@@ -917,6 +928,12 @@
       borrarPunto(Number(e.target.getAttribute('data-o')));
     });
 
+    // Borrador del croquis: se guarda al escribir y se restaura al abrir la página
+    const claveBorrador = 'linderos-croquis';
+    try { const guardado = localStorage.getItem(claveBorrador); if (guardado) $('croquis').value = guardado; } catch (e) {}
+    $('croquis').addEventListener('input', () => {
+      try { localStorage.setItem(claveBorrador, $('croquis').value); } catch (e) {}
+    });
     $('btnCroquis').addEventListener('click', () => {
       estado.croquis = $('croquis').value;
       if (estado.puntos.length) regrupar();
@@ -948,6 +965,8 @@
     });
 
     $('btnCalcVolumen').addEventListener('click', calcularVolumen);
+    $('btnVerCoords').addEventListener('click', () => mostrarCoordenadas($('selZona').value));
+    $('btnAplicarExcPanel').addEventListener('click', () => $('btnAplicarExc').click());
     $('btnAplicarExc').addEventListener('click', () => {
       const cota = cotaDiseno();
       if (cota === null) return avisoCortes('Escribe la cota de diseño antes de aplicar la excavación.', true);
@@ -956,6 +975,7 @@
       const nombre = $('selZona').value;
       estado.excavaciones = estado.excavaciones.filter(e => e.nombre !== nombre);
       estado.excavaciones.push({ nombre: nombre, poly: zona.map(p => ({ E: p.E, N: p.N })), cota: cota, paso: numeroDe('pasoCalc', 0.5) });
+      $('chkCurvas').checked = true;
       refrescar();
       avisoCortes('Excavación aplicada en ' + nombre + ' a ' + cota.toFixed(2) + ' m. Las curvas ya son del terreno nuevo.', false);
     });

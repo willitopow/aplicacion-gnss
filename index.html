@@ -9,10 +9,10 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Linderos">
-<link rel="manifest" href="manifest.webmanifest?v=41">
+<link rel="manifest" href="manifest.webmanifest?v=42">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-<link rel="stylesheet" href="css/estilo.css?v=41">
+<link rel="stylesheet" href="css/estilo.css?v=42">
 </head>
 <body>
 <div class="app">
@@ -28,7 +28,7 @@
     <button class="pestana" data-tab="perfiles" type="button">Perfiles</button>
     <button class="pestana" data-tab="exportar" type="button">Exportar</button>
     <div class="barra-der">
-      <span class="version">Versión 41</span>
+      <span class="version">Versión 42</span>
       <button id="btnInstalar" type="button" class="btn-pequeno" hidden>Instalar</button>
     </div>
   </nav>
@@ -92,6 +92,7 @@
       <div class="botones">
         <button id="btnDibujarZona" type="button" class="boton grande primario"><span class="ico-b">⬚</span>Dibujar<br>zona</button>
         <button id="btnDeshacerVertice" type="button" class="boton">Deshacer<br>punto</button>
+        <button id="btnVerCoords" type="button" class="boton">Ver<br>coordenadas</button>
         <button id="btnTerminarDibujo" type="button" class="boton">Terminar</button>
         <button id="btnCancelarDibujo" type="button" class="boton">Cancelar</button>
         <label class="boton campo-b">Zona
@@ -183,6 +184,7 @@
     <section id="panel-resultado" class="flotante ancho" hidden>
       <header><b>Resultado</b><button type="button" class="cerrar-panel">✕</button></header>
       <div id="resumenVolumen" class="resumen"></div>
+      <div class="fila-panel"><button id="btnAplicarExcPanel" type="button" class="primario">Aplicar excavación a esta zona</button></div>
       <div id="graficosCortes" class="graficos"></div>
     </section>
 
@@ -218,9 +220,9 @@
 
 </div>
 
-<script src="js/core.js?v=41"></script>
-<script src="js/app.js?v=41"></script>
-<script src="js/ui.js?v=41"></script>
+<script src="js/core.js?v=42"></script>
+<script src="js/app.js?v=42"></script>
+<script src="js/ui.js?v=42"></script>
 <script>
   // Registro del service worker (requiere https o localhost)
   if ('serviceWorker' in navigator) {
