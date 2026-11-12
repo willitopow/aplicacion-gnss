@@ -974,6 +974,40 @@
     });
   }
 
+  // Terreno después de excavar o rellenar: dentro de cada zona el terreno queda a la cota de diseño.
+  // Los puntos del borde conservan su altura natural (para que el talud quede bien) y los puntos
+  // medidos dentro de la zona se reemplazan por la superficie nueva.
+  function terrenoConExcavaciones(puntos, excavaciones) {
+    let base = puntos.filter(p => p.h !== null && p.h !== undefined && isFinite(p.h));
+    (excavaciones || []).forEach(ex => {
+      const poly = ex.poly;
+      const paso = ex.paso > 0 ? ex.paso : 0.5;
+      const superf = superficie(base);
+      const minE = Math.min.apply(null, poly.map(q => q.E)), maxE = Math.max.apply(null, poly.map(q => q.E));
+      const minN = Math.min.apply(null, poly.map(q => q.N)), maxN = Math.max.apply(null, poly.map(q => q.N));
+      base = base.filter(p => !dentroDePoligono(p.E, p.N, poly));
+      const nuevos = [];
+      for (let i = 0; i < poly.length; i++) {
+        const a = poly[i], b = poly[(i + 1) % poly.length];
+        const L = Math.hypot(b.E - a.E, b.N - a.N);
+        const k = Math.max(1, Math.ceil(L / paso));
+        for (let j = 0; j < k; j++) {
+          const t = j / k;
+          const E = a.E + t * (b.E - a.E), N = a.N + t * (b.N - a.N);
+          const h = superf.alturaEn(E, N);
+          if (h !== null) nuevos.push({ E: E, N: N, h: h });
+        }
+      }
+      for (let x = minE + paso / 2; x < maxE; x += paso) {
+        for (let y = minN + paso / 2; y < maxN; y += paso) {
+          if (dentroDePoligono(x, y, poly)) nuevos.push({ E: x, N: y, h: ex.cota });
+        }
+      }
+      base = base.concat(nuevos);
+    });
+    return base;
+  }
+
   /* ---------- CSV de resultados ---------- */
 
   function campoCSV(v) {
@@ -998,7 +1032,7 @@
     triangular, curvasNivel, cruza, suavizarLinea,
     calcular, extension,
     nombreLayerDXF, generarDXF, generarCSV, aFormatoAutocad,
-    superficie, volumenCorteRelleno, perfilLongitudinal, seccionesTransversales, dentroDePoligono
+    superficie, volumenCorteRelleno, perfilLongitudinal, seccionesTransversales, dentroDePoligono, terrenoConExcavaciones
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = API;

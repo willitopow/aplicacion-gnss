@@ -24,6 +24,7 @@
     zonas: [],         // zonas dibujadas en el plano: { nombre, tipo, poly }
     ejes: [],          // ejes dibujados en el plano
     dibujo: null,      // dibujo en curso: { tipo: zona o eje, pts: [] }
+    excavaciones: [], // zonas excavadas/rellenadas: { nombre, poly, cota, paso }
     vb: null,          // viewBox actual del mapa (coordenadas locales)
     origen: null,      // origen local del mapa: { x: minE, y: maxN }
     escala0: 1         // ancho inicial de la vista (base para límites de zoom)
@@ -235,7 +236,8 @@
       $('resumenCurvas').textContent = 'Escribe una equidistancia mayor que 0 (por ejemplo 0.5 o 1).';
       return;
     }
-    estado.curvas = Core.curvasNivel(estado.puntos, eq, bordesDeCapas(), { suave: $('chkSuave').checked });
+    const terreno = estado.excavaciones.length ? Core.terrenoConExcavaciones(estado.puntos, estado.excavaciones) : estado.puntos;
+    estado.curvas = Core.curvasNivel(terreno, eq, bordesDeCapas(), { suave: $('chkSuave').checked });
     const c = estado.curvas;
     if (c.puntos < 3) {
       $('resumenCurvas').textContent = 'Se necesitan al menos 3 puntos con altura para calcular curvas.';
@@ -244,7 +246,8 @@
     $('resumenCurvas').innerHTML =
       '<b>Altura mín.:</b> ' + c.hMin.toFixed(2) + ' m · <b>máx.:</b> ' + c.hMax.toFixed(2) + ' m' +
       ' · <b>Niveles:</b> ' + c.curvas.length +
-      (c.sinAltura ? ' · <b>Puntos sin altura (no entran):</b> ' + c.sinAltura : '');
+      (c.sinAltura ? ' · <b>Puntos sin altura (no entran):</b> ' + c.sinAltura : '') +
+      (estado.excavaciones.length ? '<br><b>Terreno excavado:</b> ' + estado.excavaciones.map(e => esc(e.nombre) + ' a ' + e.cota.toFixed(2) + ' m').join(', ') : '');
   }
 
   // Lista de puntos con altura editable y botón para borrar
@@ -684,6 +687,9 @@
     let txt = '<b>Zona ' + esc($('selZona').value) + '</b> · Cota de diseño ' + cota.toFixed(2) + ' m · ' +
       '<b>Área:</b> ' + r.area.toFixed(2) + ' m² · <b>Corte:</b> ' + r.corte.toFixed(2) + ' m³ · ' +
       '<b>Relleno:</b> ' + r.relleno.toFixed(2) + ' m³ · <b>Diferencia (corte − relleno):</b> ' + r.neto.toFixed(2) + ' m³';
+    txt += '<div class="tabla-alturas"><table><thead><tr><th>Vértice</th><th>Este (E)</th><th>Norte (N)</th></tr></thead><tbody>' +
+      zona.map((p, i) => '<tr><td>' + (i + 1) + '</td><td>' + p.E.toFixed(3) + '</td><td>' + p.N.toFixed(3) + '</td></tr>').join('') +
+      '</tbody></table></div>';
     if (r.sinDato > 0) {
       const total = r.area + r.sinDato * r.paso * r.paso;
       const pct = (r.sinDato * r.paso * r.paso / total * 100).toFixed(0);
@@ -942,6 +948,23 @@
     });
 
     $('btnCalcVolumen').addEventListener('click', calcularVolumen);
+    $('btnAplicarExc').addEventListener('click', () => {
+      const cota = cotaDiseno();
+      if (cota === null) return avisoCortes('Escribe la cota de diseño antes de aplicar la excavación.', true);
+      const zona = obtenerTrazo($('selZona').value);
+      if (!zona || zona.length < 3 || !zona.cerrada) return avisoCortes('Elige una zona cerrada (Dibujar zona) antes de aplicar la excavación.', true);
+      const nombre = $('selZona').value;
+      estado.excavaciones = estado.excavaciones.filter(e => e.nombre !== nombre);
+      estado.excavaciones.push({ nombre: nombre, poly: zona.map(p => ({ E: p.E, N: p.N })), cota: cota, paso: numeroDe('pasoCalc', 0.5) });
+      refrescar();
+      avisoCortes('Excavación aplicada en ' + nombre + ' a ' + cota.toFixed(2) + ' m. Las curvas ya son del terreno nuevo.', false);
+    });
+    $('btnQuitarExc').addEventListener('click', () => {
+      if (!estado.excavaciones.length) return avisoCortes('No hay excavaciones aplicadas.', true);
+      estado.excavaciones = [];
+      refrescar();
+      avisoCortes('Excavaciones quitadas. Las curvas vuelven al terreno original.', false);
+    });
     $('btnDibujarZona').addEventListener('click', () => iniciarDibujo('zona'));
     $('btnDibujarEje').addEventListener('click', () => iniciarDibujo('eje'));
     $('btnTerminarDibujo').addEventListener('click', terminarDibujo);
