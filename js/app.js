@@ -245,9 +245,25 @@
       $('resumenCurvas').textContent = 'Escribe una equidistancia mayor que 0 (por ejemplo 0.5 o 1).';
       return;
     }
-    const terreno = estado.excavaciones.length ? Core.terrenoConExcavaciones(estado.puntos, estado.excavaciones) : estado.puntos;
     const superf = Core.superficie(estado.puntos);
-    const quiebres = estado.quiebres.map(q => q.poly.map(p => ({ E: p.E, N: p.N, h: superf.alturaEn(p.E, p.N) })));
+    // Una línea de quiebre cerrada es un cuerpo de agua: dentro, el terreno queda a una sola cota
+    // (la media de sus puntos) y sus bordes también, así las curvas no lo atraviesan.
+    const lagos = [];
+    const quiebresAbiertos = [];
+    estado.quiebres.forEach(q => {
+      const P = q.poly;
+      const cerrada = P.length > 3 && Math.hypot(P[0].E - P[P.length - 1].E, P[0].N - P[P.length - 1].N) < 1e-3;
+      if (cerrada) {
+        const anillo = P.slice(0, -1);
+        const hs = anillo.map(p => superf.alturaEn(p.E, p.N)).filter(h => h !== null);
+        if (hs.length) lagos.push({ nombre: 'Lago', poly: anillo, cota: hs.reduce((s, h) => s + h, 0) / hs.length, paso: 1.0, lago: true });
+      } else {
+        quiebresAbiertos.push(q);
+      }
+    });
+    const excav = estado.excavaciones.concat(lagos);
+    const terreno = excav.length ? Core.terrenoConExcavaciones(estado.puntos, excav) : estado.puntos;
+    const quiebres = quiebresAbiertos.map(q => q.poly.map(p => ({ E: p.E, N: p.N, h: superf.alturaEn(p.E, p.N) })));
     estado.curvas = Core.curvasNivel(terreno, eq, bordesDeCapas(), {
       suave: $('chkSuave').checked,
       quiebres: quiebres,
@@ -814,7 +830,7 @@
     actualizarEstadoDibujo();
     pintarMapa();
     mostrar(tipo === 'zona' ? 'Toca el plano para marcar la zona. Al tocar el primer punto se cierra.' :
-            tipo === 'quiebre' ? 'Toca el plano para marcar la línea de quiebre. Pulsa Terminar al acabar.' :
+            tipo === 'quiebre' ? 'Toca el plano para marcar la línea de quiebre. Para cerrarla (lago), toca el primer punto; si no, pulsa Terminar.' :
             'Toca el plano para marcar el eje. Pulsa Terminar al acabar.');
   }
 
@@ -833,10 +849,13 @@
     const svg = $('mapa'), o = estado.origen, d = estado.dibujo;
     if (!o || !d) return;
     const q = svgPunto(svg, e.clientX, e.clientY);
-    if (d.tipo === 'zona' && d.pts.length >= 3) {
+    if ((d.tipo === 'zona' || d.tipo === 'quiebre') && d.pts.length >= 3) {
       const f = d.pts[0];
       const fx = f.E - o.x, fy = -(f.N - o.y);
-      if (Math.hypot(q.x - fx, q.y - fy) < escalaPx(svg) * 14) return terminarDibujo();
+      if (Math.hypot(q.x - fx, q.y - fy) < escalaPx(svg) * 14) {
+        if (d.tipo === 'quiebre') d.pts.push({ E: f.E, N: f.N });   // cierra la línea (lago)
+        return terminarDibujo();
+      }
     }
     let E = q.x + o.x, N = o.y - q.y;
     if (id !== null && bajo && bajo.classList && bajo.classList.contains('pt')) {
@@ -885,19 +904,49 @@
     return !(neg && pos);
   }
 
-  // Modo borrar: toca un triángulo y se quita del cálculo. Modo crear: toca tres puntos.
+  function distPuntoSegmento(E, N, A, B) {
+    const dx = B.E - A.E, dy = B.N - A.N;
+    const L2 = dx * dx + dy * dy || 1;
+    const t = Math.max(0, Math.min(1, ((E - A.E) * dx + (N - A.N) * dy) / L2));
+    return Math.hypot(E - (A.E + t * dx), N - (A.N + t * dy));
+  }
+
+  // Modo borrar líneas: toca cerca de una línea de la red. Modo crear: toca tres puntos.
   function tocarTriangulo(e, bajo, id) {
     const svg = $('mapa'), o = estado.origen;
     if (!o) return;
     const q = svgPunto(svg, e.clientX, e.clientY);
     const E = q.x + o.x, N = o.y - q.y;
     if (estado.modoTin === 'borrar') {
+      // Borra una LÍNEA (arista) de la red: los dos triángulos que la comparten forman un cuadrilátero
+      // que se vuelve a triangular por la otra diagonal. Así no quedan huecos y las curvas se recalculan.
       const tris = (estado.curvas && estado.curvas.triangulos) || [];
-      const T = tris.find(t => puntoEnTriangulo(E, N, t));
-      if (!T) return mostrar('Toca dentro de un triángulo para borrarlo.', true);
-      estado.triEliminados.add(Core.claveTri(T));
+      const tol = escalaPx(svg) * 6;
+      let mejor = null, dmin = tol;
+      tris.forEach((T, t) => {
+        for (let k = 0; k < 3; k++) {
+          const A = T[k], B = T[(k + 1) % 3];
+          const dd = distPuntoSegmento(E, N, A, B);
+          if (dd < dmin) { dmin = dd; mejor = { t: t, A: A, B: B }; }
+        }
+      });
+      if (!mejor) return mostrar('Toca cerca de una línea de la red de triángulos (se ven con Ver triángulos).', true);
+      const A = mejor.A, B = mejor.B;
+      const esArista = T => T.some(p => p === A) && T.some(p => p === B);
+      const vecinos = tris.map((T, t) => t).filter(t => t !== mejor.t && esArista(tris[t]));
+      if (!vecinos.length) return mostrar('Esa línea está en el borde de la red: no tiene dos triángulos que la compartan.', true);
+      const C = tris[mejor.t].find(p => p !== A && p !== B);
+      const D = tris[vecinos[0]].find(p => p !== A && p !== B);
+      // El cuadrilátero debe ser convexo: la nueva diagonal CD tiene que cruzar AB
+      const orient = (p, q, r) => (q.E - p.E) * (r.N - p.N) - (q.N - p.N) * (r.E - p.E);
+      const cruza = orient(A, B, C) * orient(A, B, D) < 0 && orient(C, D, A) * orient(C, D, B) < 0;
+      if (!cruza) return mostrar('No se puede borrar esta línea: el cuadrilátero no es convexo y los triángulos se cruzarían.', true);
+      estado.triEliminados.add(Core.claveTri([A, B, C]));
+      estado.triEliminados.add(Core.claveTri([A, B, D]));
+      estado.triCreados.push([C, A, D].map(p => ({ E: p.E, N: p.N })));
+      estado.triCreados.push([C, B, D].map(p => ({ E: p.E, N: p.N })));
       recalcCurvas(); pintarMapa();
-      mostrar('Triángulo borrado. Las curvas se recalcularon.');
+      mostrar('Línea borrada. La red se volvió a triangular y las curvas se recalcularon.');
       return;
     }
     if (estado.modoTin === 'crear') {
@@ -925,7 +974,7 @@
   function actualizarEstadoModo() {
     const t = $('estadoDibujo');
     if (estado.dibujo) return;
-    if (estado.modoTin === 'borrar') t.textContent = 'Modo borrar triángulos: toca un triángulo para quitarlo.';
+    if (estado.modoTin === 'borrar') t.textContent = 'Modo borrar líneas: toca una línea de triángulo para quitarla.';
     else if (estado.modoTin === 'crear') t.textContent = 'Modo crear triángulo: toca 3 puntos del levantamiento (' + estado.triTmp.length + ' de 3).';
     else t.textContent = '';
   }
@@ -1263,7 +1312,7 @@
     $('btnQuiebre').addEventListener('click', () => iniciarDibujo('quiebre'));
     $('btnTerminarQuiebre').addEventListener('click', terminarDibujo);
     $('chkTriangulos').addEventListener('change', () => { estado.verTri = $('chkTriangulos').checked; pintarMapa(); });
-    $('btnModoBorrarTri').addEventListener('click', () => { estado.modoTin = 'borrar'; actualizarEstadoModo(); mostrar('Toca los triángulos que quieres quitar.'); });
+    $('btnModoBorrarTri').addEventListener('click', () => { estado.modoTin = 'borrar'; actualizarEstadoModo(); mostrar('Toca una línea de triángulo para quitarla (las curvas se recalculan).'); });
     $('btnModoCrearTri').addEventListener('click', () => { estado.modoTin = 'crear'; estado.triTmp = []; actualizarEstadoModo(); mostrar('Toca 3 puntos del levantamiento para crear un triángulo.'); });
     $('btnSalirModo').addEventListener('click', () => { estado.modoTin = null; estado.triTmp = []; actualizarEstadoModo(); });
     $('btnResetTri').addEventListener('click', () => { estado.triEliminados = new Set(); estado.triCreados = []; recalcCurvas(); pintarMapa(); mostrar('Triángulos restaurados a la red original.'); });

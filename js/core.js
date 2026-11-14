@@ -560,6 +560,7 @@
     const porClave = new Map();
     todos.forEach((p, i) => porClave.set(claveP(p), i));
     (ed.creados || []).forEach(T => {
+      if (elim.has(claveTri(T))) return;
       const I = T.map(p => porClave.get(claveP(p)));
       if (I.every(i => i !== undefined) && new Set(I).size === 3) out.push(I);
     });
@@ -1073,7 +1074,7 @@
         for (let j = 0; j < k; j++) {
           const t = j / k;
           const E = a.E + t * (b.E - a.E), N = a.N + t * (b.N - a.N);
-          const h = superf.alturaEn(E, N);
+          const h = ex.lago ? ex.cota : superf.alturaEn(E, N);
           if (h !== null) nuevos.push({ E: E, N: N, h: h });
         }
       }
