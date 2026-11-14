@@ -27,7 +27,9 @@
     excavaciones: [], // zonas excavadas/rellenadas: { nombre, poly, cota, paso }
     vb: null,          // viewBox actual del mapa (coordenadas locales)
     origen: null,      // origen local del mapa: { x: minE, y: maxN }
-    escala0: 1         // ancho inicial de la vista (base para límites de zoom)
+    escala0: 1,        // ancho inicial de la vista (base para límites de zoom)
+    marco: { activo: false, escala: 500, formato: 'A3', orient: 'h', E0: null, N0: null, cuadricula: 50,
+             norte: true, escalaGraf: true, plano: '', proyecto: '', dibujo: '', fecha: '' }
   };
 
   /* ---------- utilidades ---------- */
@@ -326,27 +328,12 @@
     estado.escala0 = estado.vb.w;
   }
 
-  function pintarMapa() {
-    const svg = $('mapa');
-    const act = activas();
-    pintarResumen(act);
-
-    const pts = puntosDe(act);
-    if (!pts.length) { svg.innerHTML = ''; return; }
-
-    if (!estado.vb) {
-      const extra = estado.zonas.concat(estado.ejes).reduce((acc, t) => acc.concat(t.poly), []);
-      ajustar(Core.extension(puntosParaAjustar(act).concat(extra)));
-    }
-
-    const o = estado.origen;
+  // Contenido del plano (pantalla e impresión): puntos, figuras, zonas, ejes y curvas con cota
+  function construirDibujo(u, act, o) {
     const sx = p => p.E - o.x;
     const sy = p => -(p.N - o.y);
-    // Tamaño en pantalla: los puntos y textos mantienen su tamaño al hacer zoom
-    const u = (svg.clientWidth && svg.clientHeight) ? escalaPx(svg) * 3 : Math.max(estado.vb.w, 1e-6) / 400;   // ~3 px por unidad
     const etqPts = $('chkEtqPts').checked;
     const etqArea = $('chkEtqArea').checked;
-
     let g = '';
     let hits = '';   // áreas de toque de los puntos (encima de todo)
     const dibujados = new Set();   // cada punto se dibuja una sola vez, aunque esté en varias capas
@@ -446,12 +433,199 @@
       estado.curvas.curvas.forEach(cv => cv.lineas.forEach(l => {
         const d = l.pts.map(p => sx(p) + ',' + sy(p)).join(' ');
         g += '<polyline points="' + d + '" fill="none" stroke="#8b5a2b" stroke-width="' + (u * 0.6) + '"/>';
-        g += '<text x="' + sx(l.etiqueta) + '" y="' + sy(l.etiqueta) + '" font-size="' + (u * 3.5) +
-             '" text-anchor="middle" fill="#5b3a1a">' + cv.nivel.toFixed(2) + '</text>';
+        // Cota a lo largo de la curva: girada según la dirección de la línea, con halo blanco para leerla
+        const n = l.pts.length, k = Math.floor(n / 2);
+        const pa = l.pts[Math.max(0, k - 1)], pb = l.pts[Math.min(n - 1, k + 1)];
+        let ang = Math.atan2(sy(pb) - sy(pa), sx(pb) - sx(pa)) * 180 / Math.PI;
+        if (ang > 90) ang -= 180;
+        if (ang < -90) ang += 180;
+        g += '<text transform="translate(' + sx(l.etiqueta) + ',' + sy(l.etiqueta) + ') rotate(' + ang + ')" dy="' + (-u * 0.6) +
+             '" text-anchor="middle" font-size="' + (u * 3.5) + '" fill="#5b3a1a" stroke="#ffffff" stroke-width="' + (u * 0.9) +
+             '" paint-order="stroke">' + cv.nivel.toFixed(2) + '</text>';
       }));
     }
-    svg.innerHTML = g + hits;
+    return { g: g, hits: hits };
+  }
+
+  function pintarMapa() {
+    const svg = $('mapa');
+    const act = activas();
+    pintarResumen(act);
+
+    const pts = puntosDe(act);
+    if (!pts.length) { svg.innerHTML = ''; return; }
+
+    if (!estado.vb) {
+      const extra = estado.zonas.concat(estado.ejes).reduce((acc, t) => acc.concat(t.poly), []);
+      ajustar(Core.extension(puntosParaAjustar(act).concat(extra)));
+    }
+    const o = estado.origen;
+    // Tamaño en pantalla: los puntos y textos mantienen su tamaño al hacer zoom
+    const u = (svg.clientWidth && svg.clientHeight) ? escalaPx(svg) * 3 : Math.max(estado.vb.w, 1e-6) / 400;
+    const d = construirDibujo(u, act, o);
+    const marco = estado.marco.activo ? construirMarco(o, false) : '';
+    svg.innerHTML = d.g + marco + d.hits;
     aplicarVB();
+  }
+
+  /* ---------- marco de impresión, rótulo, cuadrícula, norte y escala ---------- */
+
+  const FORMATOS = { A4: [210, 297], A3: [297, 420], A2: [420, 594], A1: [594, 841] };   // [corto, largo] en mm
+
+  // Centro del marco en la vista actual del plano
+  function centrarMarco(o) {
+    const v = estado.vb;
+    if (!o || !v) return;
+    estado.marco.E0 = v.x + v.w / 2 + o.x;
+    estado.marco.N0 = o.y - (v.y + v.h / 2);
+  }
+
+  // Tamaño y posición del marco en metros de terreno. Se ajusta a la escala elegida.
+  function marcoGeometria(o) {
+    const m = estado.marco;
+    const f = FORMATOS[m.formato] || FORMATOS.A3;
+    const wMM = m.orient === 'v' ? f[0] : f[1];
+    const hMM = m.orient === 'v' ? f[1] : f[0];
+    if (m.E0 === null || m.N0 === null) {
+      if (estado.vb) centrarMarco(o);
+      else { m.E0 = o.x; m.N0 = o.y; }
+    }
+    const mm = x => x * m.escala / 1000;     // metros de terreno que representa 1 mm de papel
+    const wM = mm(wMM), hM = mm(hMM);
+    return { wMM: wMM, hMM: hMM, mm: mm,
+      minE: m.E0 - wM / 2, maxE: m.E0 + wM / 2, minN: m.N0 - hM / 2, maxN: m.N0 + hM / 2 };
+  }
+
+  function escalaNice(x) {
+    const p = Math.pow(10, Math.floor(Math.log10(x)));
+    let mejor = p;
+    [1, 2, 5, 10].forEach(k => { if (p * k <= x) mejor = p * k; });
+    return mejor;
+  }
+
+  // Marco completo. soloFondo: rectángulo blanco que va debajo del dibujo al imprimir
+  function construirMarco(o, soloFondo) {
+    const m = estado.marco;
+    const G = marcoGeometria(o);
+    const mm = G.mm;
+    const sx = E => E - o.x;
+    const sy = N => -(N - o.y);
+    const X0 = sx(G.minE), X1 = sx(G.maxE), Y0 = sy(G.maxN), Y1 = sy(G.minN);
+    if (soloFondo) {
+      return '<rect x="' + X0 + '" y="' + Y0 + '" width="' + (X1 - X0) + '" height="' + (Y1 - Y0) + '" fill="#ffffff"/>';
+    }
+    const mar = mm(10);
+    const IX0 = X0 + mar, IX1 = X1 - mar, IY0 = Y0 + mar, IY1 = Y1 - mar;
+    let s = '';
+    const txt = (x, y, t, size, extra) => '<text x="' + x + '" y="' + y + '" font-size="' + size + '" fill="#111"' + (extra || '') + '>' + t + '</text>';
+
+    // Cuadrícula de coordenadas, con valores en los bordes
+    const paso = Number(m.cuadricula);
+    if (paso > 0) {
+      const ne0 = G.minE + mar, ne1 = G.maxE - mar, nn0 = G.minN + mar, nn1 = G.maxN - mar;
+      for (let E = Math.ceil(ne0 / paso) * paso; E <= ne1; E += paso) {
+        s += '<line x1="' + sx(E) + '" y1="' + IY0 + '" x2="' + sx(E) + '" y2="' + IY1 + '" stroke="#64748b" stroke-width="' + mm(0.15) +
+             '" stroke-dasharray="' + mm(2) + ' ' + mm(1) + '"/>';
+        s += txt(sx(E), Y0 + mar * 0.7, Math.round(E), mm(2.2), ' text-anchor="middle"');
+      }
+      for (let N = Math.ceil(nn0 / paso) * paso; N <= nn1; N += paso) {
+        s += '<line x1="' + IX0 + '" y1="' + sy(N) + '" x2="' + IX1 + '" y2="' + sy(N) + '" stroke="#64748b" stroke-width="' + mm(0.15) +
+             '" stroke-dasharray="' + mm(2) + ' ' + mm(1) + '"/>';
+        s += '<text transform="translate(' + (X0 + mar * 0.5) + ',' + sy(N) + ') rotate(-90)" font-size="' + mm(2.2) +
+             '" fill="#111" text-anchor="middle">' + Math.round(N) + '</text>';
+      }
+    }
+
+    // Borde del papel y área de trabajo
+    s += '<rect x="' + X0 + '" y="' + Y0 + '" width="' + (X1 - X0) + '" height="' + (Y1 - Y0) + '" fill="none" stroke="#111" stroke-width="' + mm(0.6) + '"/>';
+    s += '<rect x="' + IX0 + '" y="' + IY0 + '" width="' + (IX1 - IX0) + '" height="' + (IY1 - IY0) + '" fill="none" stroke="#111" stroke-width="' + mm(0.3) + '"/>';
+
+    // Rótulo: bloque abajo a la derecha
+    const rw = mm(95), rh = mm(40), RX = IX1 - rw, RY = IY1 - rh, fila = mm(7.5);
+    s += '<rect x="' + RX + '" y="' + RY + '" width="' + rw + '" height="' + rh + '" fill="#ffffff" stroke="#111" stroke-width="' + mm(0.4) + '"/>';
+    const filas = [
+      ['PLANO', m.plano || '—'],
+      ['PROYECTO', m.proyecto || '—'],
+      ['ESCALA', '1:' + m.escala + '   FORMATO ' + m.formato + (m.orient === 'v' ? ' vertical' : ' horizontal')],
+      ['FECHA', m.fecha || '—'],
+      ['DIBUJÓ', m.dibujo || '—']
+    ];
+    filas.forEach((f, i) => {
+      const y = RY + fila * (i + 1) - mm(2.2);
+      s += '<text x="' + (RX + mm(3)) + '" y="' + y + '" font-size="' + mm(i === 0 ? 3.6 : 2.6) + '" fill="#111"' +
+           (i === 0 ? ' font-weight="bold"' : '') + '>' + esc(f[0]) + ': ' + esc(f[1]) + '</text>';
+      if (i < filas.length - 1) {
+        s += '<line x1="' + RX + '" y1="' + (RY + fila * (i + 1)) + '" x2="' + (RX + rw) + '" y2="' + (RY + fila * (i + 1)) +
+             '" stroke="#111" stroke-width="' + mm(0.2) + '"/>';
+      }
+    });
+
+    // Norte: flecha arriba a la derecha
+    if (m.norte) {
+      const cx = IX1 - mm(9);
+      s += '<polygon points="' + cx + ',' + (IY0 + mm(7)) + ' ' + (cx - mm(4)) + ',' + (IY0 + mm(16)) + ' ' + (cx + mm(4)) + ',' + (IY0 + mm(16)) +
+           '" fill="#111"/>';
+      s += txt(cx, IY0 + mm(5), 'N', mm(4), ' text-anchor="middle" font-weight="bold"');
+    }
+
+    // Escala gráfica: barra abajo a la izquierda (40 mm de papel)
+    if (m.escalaGraf) {
+      const L = escalaNice(40 * m.escala / 1000);          // metros que se representan
+      const Lmm = L * 1000 / m.escala;                     // longitud de la barra en mm
+      const x0 = IX0 + mm(6), y0 = IY1 - mm(12);
+      s += '<rect x="' + x0 + '" y="' + y0 + '" width="' + mm(Lmm / 2) + '" height="' + mm(1.5) + '" fill="#111"/>';
+      s += '<rect x="' + (x0 + mm(Lmm / 2)) + '" y="' + y0 + '" width="' + mm(Lmm / 2) + '" height="' + mm(1.5) + '" fill="#ffffff" stroke="#111" stroke-width="' + mm(0.2) + '"/>';
+      s += txt(x0, y0 + mm(5), '0', mm(2.2), ' text-anchor="middle"');
+      s += txt(x0 + mm(Lmm / 2), y0 + mm(5), (L / 2 >= 1000 ? (L / 2000) + ' km' : (L / 2) + ' m'), mm(2.2), ' text-anchor="middle"');
+      s += txt(x0 + mm(Lmm), y0 + mm(5), (L >= 1000 ? (L / 1000) + ' km' : L + ' m'), mm(2.2), ' text-anchor="middle"');
+    }
+    return s;
+  }
+
+  // SVG del plano listo para imprimir o guardar: el marco y su contenido a escala de papel
+  function svgDelPlano() {
+    const o = estado.origen;
+    if (!o || !estado.vb) return null;
+    const act = activas();
+    const G = marcoGeometria(o);
+    const d = construirDibujo(G.mm(0.5), act, o);
+    const X0 = G.minE - o.x, X1 = G.maxE - o.x, Y0 = -(G.maxN - o.y), Y1 = -(G.minN - o.y);
+    return '<svg xmlns="http://www.w3.org/2000/svg" width="' + G.wMM + 'mm" height="' + G.hMM + 'mm" viewBox="' +
+      X0 + ' ' + Y0 + ' ' + (X1 - X0) + ' ' + (Y1 - Y0) + '">' +
+      construirMarco(o, true) + d.g + construirMarco(o, false) + '</svg>';
+  }
+
+  function imprimirPlano() {
+    const svgTxt = svgDelPlano();
+    if (!svgTxt) return mostrar('Primero carga puntos para imprimir el plano.', true);
+    const G = marcoGeometria(estado.origen);
+    const w = window.open('', '_blank');
+    if (!w) return mostrar('El navegador bloqueó la ventana de impresión. Permite ventanas emergentes.', true);
+    w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Plano</title><style>' +
+      '@page { size: ' + G.wMM + 'mm ' + G.hMM + 'mm; margin: 0; }' +
+      'html, body { margin: 0; padding: 0; }' +
+      'svg { display: block; width: ' + G.wMM + 'mm; height: ' + G.hMM + 'mm; }</style></head><body>' +
+      svgTxt + '</body></html>');
+    w.document.close();
+    setTimeout(() => { w.focus(); w.print(); }, 400);
+  }
+
+  // Lee los datos del marco desde la pestaña y el rótulo
+  function leerMarco() {
+    const m = estado.marco;
+    m.activo = $('chkMarco').checked;
+    const esc2 = Number(String($('marcoEscala').value).replace(',', '.'));
+    if (isFinite(esc2) && esc2 > 0) m.escala = esc2;
+    m.formato = $('marcoFormato').value;
+    m.orient = $('marcoOrient').value;
+    const cu = Number(String($('marcoCuadricula').value).replace(',', '.'));
+    m.cuadricula = isFinite(cu) && cu >= 0 ? cu : 0;
+    m.norte = $('marcoNorte').checked;
+    m.escalaGraf = $('marcoEscalaGraf').checked;
+    m.plano = $('marcoPlano').value.trim();
+    m.proyecto = $('marcoProyecto').value.trim();
+    m.dibujo = $('marcoDibujo').value.trim();
+    m.fecha = $('marcoFecha').value.trim();
   }
 
   // Etiqueta de un punto: número, y si está activado, su altura (ej. "12 · 997.53")
@@ -521,10 +695,18 @@
 
     // Pantalla táctil: un dedo mueve, dos dedos hacen zoom (pinza)
     const punteros = new Map();
+    let marcoArr = null;   // arrastre del marco de impresión
     let distAnterior = null;
     let toque = null;   // para detectar un toque sobre un punto
 
     svg.addEventListener('pointerdown', e => {
+      marcoArr = null;
+      if (estado.marco.activo && estado.origen && punteros.size === 0) {
+        const q = svgPunto(svg, e.clientX, e.clientY);
+        const E = q.x + estado.origen.x, N = estado.origen.y - q.y;
+        const G = marcoGeometria(estado.origen);
+        if (E >= G.minE && E <= G.maxE && N >= G.minN && N <= G.maxN) marcoArr = { x: e.clientX, y: e.clientY };
+      }
       toque = { x: e.clientX, y: e.clientY, obj: e.target, pid: e.pointerId };
       punteros.set(e.pointerId, { x: e.clientX, y: e.clientY });
       svg.setPointerCapture(e.pointerId);
@@ -532,6 +714,14 @@
     });
 
     svg.addEventListener('pointermove', e => {
+      if (marcoArr && punteros.size === 1) {
+        const k = escalaPx(svg);
+        estado.marco.E0 += (e.clientX - marcoArr.x) * k;
+        estado.marco.N0 -= (e.clientY - marcoArr.y) * k;
+        marcoArr = { x: e.clientX, y: e.clientY };
+        pintarMapa();
+        return;
+      }
       if (!punteros.has(e.pointerId) || !estado.vb) return;
       const prev = punteros.get(e.pointerId);
       punteros.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -553,6 +743,7 @@
     });
 
     const soltar = e => {
+      marcoArr = null;
       if (toque && toque.pid === e.pointerId && Math.hypot(e.clientX - toque.x, e.clientY - toque.y) < 6) {
         // Busca el punto que está bajo el dedo o el cursor al soltar (no depende de la captura)
         const bajo = document.elementFromPoint(e.clientX, e.clientY);
@@ -1038,6 +1229,20 @@
     });
     $('btnPerfil').addEventListener('click', dibujarCortes);
     $('btnCortesCSV').addEventListener('click', exportarCortes);
+    // Marco e impresión
+    ['chkMarco', 'marcoEscala', 'marcoFormato', 'marcoOrient', 'marcoCuadricula', 'marcoNorte', 'marcoEscalaGraf',
+     'marcoPlano', 'marcoProyecto', 'marcoDibujo', 'marcoFecha'].forEach(id => {
+      $(id).addEventListener('change', () => { leerMarco(); pintarMapa(); });
+      $(id).addEventListener('input', () => { leerMarco(); pintarMapa(); });
+    });
+    $('btnCentrarMarco').addEventListener('click', () => { centrarMarco(estado.origen); pintarMapa(); });
+    $('btnSVG').addEventListener('click', () => {
+      const s = svgDelPlano();
+      if (!s) return mostrar('Primero carga puntos para generar el plano.', true);
+      descargar(estado.nombreBase + '_plano.svg', s, 'image/svg+xml');
+      mostrar('Plano guardado como SVG (ábrelo en el navegador o en AutoCAD/Inkscape).');
+    });
+    $('btnImprimir').addEventListener('click', imprimirPlano);
     $('btnDXF').addEventListener('click', exportarDXF);
     $('btnCSV').addEventListener('click', exportarCSV);
 

@@ -9,10 +9,10 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Linderos">
-<link rel="manifest" href="manifest.webmanifest?v=43">
+<link rel="manifest" href="manifest.webmanifest?v=44">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-<link rel="stylesheet" href="css/estilo.css?v=43">
+<link rel="stylesheet" href="css/estilo.css?v=44">
 </head>
 <body>
 <div class="app">
@@ -26,9 +26,10 @@
     <button class="pestana" data-tab="curvas" type="button">Curvas de nivel</button>
     <button class="pestana" data-tab="volumen" type="button">Corte y volumen</button>
     <button class="pestana" data-tab="perfiles" type="button">Perfiles</button>
+    <button class="pestana" data-tab="marco" type="button">Marco y rótulo</button>
     <button class="pestana" data-tab="exportar" type="button">Exportar</button>
     <div class="barra-der">
-      <span class="version">Versión 43</span>
+      <span class="version">Versión 44</span>
       <button id="btnInstalar" type="button" class="btn-pequeno" hidden>Instalar</button>
     </div>
   </nav>
@@ -123,6 +124,30 @@
       <div class="titulo-grupo">Perfiles</div>
     </div>
 
+    <div class="grupo" data-tab="marco" hidden>
+      <div class="botones">
+        <label class="boton check-b"><input type="checkbox" id="chkMarco"> Activar marco</label>
+        <label class="boton campo-b">Escala 1:
+          <input type="text" id="marcoEscala" inputmode="numeric" value="500"></label>
+        <label class="boton campo-b">Formato
+          <select id="marcoFormato" class="selector">
+            <option value="A4">A4</option><option value="A3" selected>A3</option>
+            <option value="A2">A2</option><option value="A1">A1</option>
+          </select></label>
+        <label class="boton campo-b">Orientación
+          <select id="marcoOrient" class="selector"><option value="h" selected>Horizontal</option><option value="v">Vertical</option></select></label>
+        <label class="boton campo-b">Cuadrícula (m)
+          <input type="text" id="marcoCuadricula" inputmode="decimal" value="50"></label>
+        <label class="boton check-b"><input type="checkbox" id="marcoNorte" checked> Norte</label>
+        <label class="boton check-b"><input type="checkbox" id="marcoEscalaGraf" checked> Escala gráfica</label>
+        <button id="btnCentrarMarco" type="button" class="boton">Centrar<br>marco</button>
+        <button type="button" class="boton grande" data-panel="panel-rotulo"><span class="ico-b">🏷️</span>Rótulo</button>
+        <button id="btnSVG" type="button" class="boton">Descargar<br>SVG</button>
+        <button id="btnImprimir" type="button" class="boton grande primario"><span class="ico-b">🖨️</span>Imprimir</button>
+      </div>
+      <div class="titulo-grupo">Marco e impresión</div>
+    </div>
+
     <div class="grupo" data-tab="exportar" hidden>
       <div class="botones">
         <button id="btnDXF" type="button" class="boton grande primario"><span class="ico-b">💾</span>DXF</button>
@@ -206,6 +231,17 @@
       <div class="fila"><button id="btnAgregarPunto" type="button" class="primario">Agregar punto</button></div>
     </section>
 
+    <section id="panel-rotulo" class="flotante" hidden>
+      <header><b>Rótulo del plano</b><button type="button" class="cerrar-panel">✕</button></header>
+      <div class="rejilla">
+        <label class="campo">Plano <input type="text" id="marcoPlano" placeholder="Plano topográfico"></label>
+        <label class="campo">Proyecto <input type="text" id="marcoProyecto" placeholder="Nombre del proyecto"></label>
+        <label class="campo">Dibujó <input type="text" id="marcoDibujo" placeholder="Nombre"></label>
+        <label class="campo">Fecha <input type="text" id="marcoFecha" placeholder="dd/mm/aaaa"></label>
+      </div>
+      <p class="ayuda">Estos datos se imprimen dentro del rótulo, abajo a la derecha del marco.</p>
+    </section>
+
     <section id="panel-croquis" class="flotante ancho" hidden>
       <header><b>Figuras del croquis</b><button type="button" class="cerrar-panel">✕</button></header>
       <p class="ayuda">Una línea por figura: <code>NOMBRE / tipo / orden</code>. Tipos: <code>polilinea</code> (cerrada si repites el primero), <code>arco</code>, <code>circulo</code>, <code>linea</code>, <code>borde</code>, <code>puntos</code>.</p>
@@ -220,9 +256,9 @@
 
 </div>
 
-<script src="js/core.js?v=43"></script>
-<script src="js/app.js?v=43"></script>
-<script src="js/ui.js?v=43"></script>
+<script src="js/core.js?v=44"></script>
+<script src="js/app.js?v=44"></script>
+<script src="js/ui.js?v=44"></script>
 <script>
   // Registro del service worker (requiere https o localhost)
   if ('serviceWorker' in navigator) {

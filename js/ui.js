@@ -6,7 +6,7 @@
 (function () {
   'use strict';
   const $ = id => document.getElementById(id);
-  const PANELES = ['panel-puntos', 'panel-capas', 'panel-resultado', 'panel-pegar', 'panel-agregar', 'panel-croquis'];
+  const PANELES = ['panel-puntos', 'panel-capas', 'panel-resultado', 'panel-pegar', 'panel-agregar', 'panel-croquis', 'panel-rotulo'];
 
   function activarPestana(nombre) {
     document.querySelectorAll('.pestana').forEach(b => b.classList.toggle('activa', b.dataset.tab === nombre));
