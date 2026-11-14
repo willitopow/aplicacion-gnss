@@ -9,10 +9,10 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Linderos">
-<link rel="manifest" href="manifest.webmanifest?v=44">
+<link rel="manifest" href="manifest.webmanifest?v=45">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-<link rel="stylesheet" href="css/estilo.css?v=44">
+<link rel="stylesheet" href="css/estilo.css?v=45">
 </head>
 <body>
 <div class="app">
@@ -29,7 +29,7 @@
     <button class="pestana" data-tab="marco" type="button">Marco y rótulo</button>
     <button class="pestana" data-tab="exportar" type="button">Exportar</button>
     <div class="barra-der">
-      <span class="version">Versión 44</span>
+      <span class="version">Versión 45</span>
       <button id="btnInstalar" type="button" class="btn-pequeno" hidden>Instalar</button>
     </div>
   </nav>
@@ -84,6 +84,14 @@
         <label class="boton check-b"><input type="checkbox" id="chkCurvas"> Mostrar curvas</label>
         <label class="boton check-b"><input type="checkbox" id="chkSuave" checked> Suaves</label>
         <label class="boton check-b"><input type="checkbox" id="chkAlturas" checked> Altura en puntos</label>
+        <button id="btnQuiebre" type="button" class="boton grande"><span class="ico-b">〰️</span>Línea de<br>quiebre</button>
+        <button id="btnTerminarQuiebre" type="button" class="boton">Terminar<br>quiebre</button>
+        <button id="btnQuitarQuiebres" type="button" class="boton peligro">Quitar<br>quiebres</button>
+        <label class="boton check-b"><input type="checkbox" id="chkTriangulos"> Ver triángulos</label>
+        <button id="btnModoBorrarTri" type="button" class="boton">Borrar<br>triángulo</button>
+        <button id="btnModoCrearTri" type="button" class="boton">Crear<br>triángulo</button>
+        <button id="btnSalirModo" type="button" class="boton">Salir del<br>modo</button>
+        <button id="btnResetTri" type="button" class="boton peligro">Restaurar<br>triángulos</button>
       </div>
       <div id="resumenCurvas" class="resumen-linea"></div>
       <div class="titulo-grupo">Curvas de nivel</div>
@@ -198,7 +206,7 @@
       <div class="tabla-capas">
         <table>
           <thead>
-            <tr><th>Ver</th><th>Capa</th><th>Tipo</th><th>Puntos</th><th>Área m²</th><th>Ha</th><th>Perím./Long. m</th><th>Orden de unión</th><th>Aviso</th></tr>
+            <tr><th>Ver</th><th>Capa</th><th>Tipo</th><th>Puntos</th><th>Área m²</th><th>Ha</th><th>Perím./Long. m</th><th>Orden de unión</th><th>Bloque DXF</th><th>Aviso</th></tr>
           </thead>
           <tbody id="tbody"></tbody>
         </table>
@@ -256,9 +264,9 @@
 
 </div>
 
-<script src="js/core.js?v=44"></script>
-<script src="js/app.js?v=44"></script>
-<script src="js/ui.js?v=44"></script>
+<script src="js/core.js?v=45"></script>
+<script src="js/app.js?v=45"></script>
+<script src="js/ui.js?v=45"></script>
 <script>
   // Registro del service worker (requiere https o localhost)
   if ('serviceWorker' in navigator) {

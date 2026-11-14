@@ -25,6 +25,12 @@
     ejes: [],          // ejes dibujados en el plano
     dibujo: null,      // dibujo en curso: { tipo: zona o eje, pts: [] }
     excavaciones: [], // zonas excavadas/rellenadas: { nombre, poly, cota, paso }
+    quiebres: [],      // líneas de quiebre: { poly: [{E,N}] }
+    triEliminados: new Set(),  // triángulos borrados por el usuario (claves)
+    triCreados: [],    // triángulos creados por el usuario: [[{E,N},{E,N},{E,N}]]
+    modoTin: null,     // null | 'borrar' | 'crear' (edición de triángulos)
+    triTmp: [],        // puntos elegidos para crear un triángulo
+    verTri: false,     // mostrar la red de triángulos
     vb: null,          // viewBox actual del mapa (coordenadas locales)
     origen: null,      // origen local del mapa: { x: minE, y: maxN }
     escala0: 1,        // ancho inicial de la vista (base para límites de zoom)
@@ -163,6 +169,7 @@
       if (!c.croquis) {
         c.tipo = prev ? prev.tipo : c.tipo;
         c.union = prev ? prev.union : '';
+        c.bloque = prev ? (prev.bloque || '') : '';
       }
       // Todas las capas se dibujan (los puntos se ven); el ajuste de vista ignora las de un solo punto
       c.incluir = prev ? prev.incluir : true;
@@ -239,7 +246,13 @@
       return;
     }
     const terreno = estado.excavaciones.length ? Core.terrenoConExcavaciones(estado.puntos, estado.excavaciones) : estado.puntos;
-    estado.curvas = Core.curvasNivel(terreno, eq, bordesDeCapas(), { suave: $('chkSuave').checked });
+    const superf = Core.superficie(estado.puntos);
+    const quiebres = estado.quiebres.map(q => q.poly.map(p => ({ E: p.E, N: p.N, h: superf.alturaEn(p.E, p.N) })));
+    estado.curvas = Core.curvasNivel(terreno, eq, bordesDeCapas(), {
+      suave: $('chkSuave').checked,
+      quiebres: quiebres,
+      triEdit: { eliminados: estado.triEliminados, creados: estado.triCreados }
+    });
     const c = estado.curvas;
     if (c.puntos < 3) {
       $('resumenCurvas').textContent = 'Se necesitan al menos 3 puntos con altura para calcular curvas.';
@@ -299,6 +312,7 @@
         '<td>' + (r.perimetro > 0 ? r.perimetro.toFixed(2) : r.longitud > 0 ? r.longitud.toFixed(2) : '—') + '</td>' +
         '<td><input type="text" class="union" data-i="' + i + '" value="' + esc(c.union || '') +
           '" placeholder="ej: 1-2-3-4-1"' + (c.tipo === 'puntos' ? ' disabled' : '') + '></td>' +
+        '<td><input type="text" class="bloque" data-i="' + i + '" value="' + esc(c.bloque || '') + '" placeholder="ARBOL" style="width:90px"></td>' +
         '<td class="aviso">' + esc(r.aviso) + '</td>';
       tb.appendChild(tr);
     });
@@ -464,7 +478,18 @@
     const u = (svg.clientWidth && svg.clientHeight) ? escalaPx(svg) * 3 : Math.max(estado.vb.w, 1e-6) / 400;
     const d = construirDibujo(u, act, o);
     const marco = estado.marco.activo ? construirMarco(o, false) : '';
-    svg.innerHTML = d.g + marco + d.hits;
+    let red = '';
+    if (estado.verTri && estado.curvas && estado.curvas.triangulos) {
+      estado.curvas.triangulos.forEach(T => {
+        red += '<polygon points="' + T.map(p => (p.E - o.x) + ',' + (-(p.N - o.y))).join(' ') +
+               '" fill="none" stroke="#0ea5e9" stroke-opacity="0.55" stroke-width="' + (u * 0.4) + '"/>';
+      });
+    }
+    estado.quiebres.forEach(q => {
+      red += '<polyline points="' + q.poly.map(p => (p.E - o.x) + ',' + (-(p.N - o.y))).join(' ') +
+             '" fill="none" stroke="#0369a1" stroke-width="' + (u * 1.2) + '" stroke-dasharray="' + (u * 3) + ' ' + (u * 1.5) + '"/>';
+    });
+    svg.innerHTML = d.g + red + marco + d.hits;
     aplicarVB();
   }
 
@@ -750,6 +775,8 @@
         const id = bajo && bajo.getAttribute ? bajo.getAttribute('data-o') : null;
         if (estado.dibujo) {
           agregarVertice(e, bajo, id);
+        } else if (estado.modoTin) {
+          tocarTriangulo(e, bajo, id);
         } else if (id !== null && bajo.classList.contains('pt')) {
           seleccionar(Number(id));
           mostrar('Punto ' + Core.numeroPunto(estado.puntos.find(x => x.orden === Number(id)) || {}) + ' seleccionado. Edítalo abajo.');
@@ -786,7 +813,9 @@
     estado.dibujo = { tipo: tipo, pts: [] };
     actualizarEstadoDibujo();
     pintarMapa();
-    mostrar(tipo === 'zona' ? 'Toca el plano para marcar la zona. Al tocar el primer punto se cierra.' : 'Toca el plano para marcar el eje. Pulsa Terminar al acabar.');
+    mostrar(tipo === 'zona' ? 'Toca el plano para marcar la zona. Al tocar el primer punto se cierra.' :
+            tipo === 'quiebre' ? 'Toca el plano para marcar la línea de quiebre. Pulsa Terminar al acabar.' :
+            'Toca el plano para marcar el eje. Pulsa Terminar al acabar.');
   }
 
   function actualizarEstadoDibujo() {
@@ -794,7 +823,8 @@
     const d = estado.dibujo;
     if (!d) { t.textContent = ''; return; }
     const n = d.pts.length;
-    t.textContent = (d.tipo === 'zona' ? 'Dibujando zona' : 'Dibujando eje') + ': ' + n + ' punto' + (n === 1 ? '' : 's') +
+    const nombreTipo = { zona: 'Dibujando zona', eje: 'Dibujando eje', quiebre: 'Dibujando línea de quiebre' }[d.tipo];
+    t.textContent = nombreTipo + ': ' + n + ' punto' + (n === 1 ? '' : 's') +
       (d.tipo === 'zona' ? '. Toca el primer punto para cerrarla o pulsa Terminar.' : '. Pulsa Terminar al acabar.');
   }
 
@@ -823,6 +853,16 @@
     if (!d) return;
     if (d.tipo === 'zona' && d.pts.length < 3) return mostrar('Una zona necesita al menos 3 puntos.', true);
     if (d.tipo === 'eje' && d.pts.length < 2) return mostrar('Un eje necesita al menos 2 puntos.', true);
+    if (d.tipo === 'quiebre') {
+      if (d.pts.length < 2) return mostrar('Una línea de quiebre necesita al menos 2 puntos.', true);
+      estado.quiebres.push({ poly: d.pts.slice() });
+      estado.dibujo = null;
+      actualizarEstadoDibujo();
+      recalcCurvas();
+      pintarMapa();
+      mostrar('Línea de quiebre ' + estado.quiebres.length + ' guardada. Las curvas se recalcularon.');
+      return;
+    }
     const lista = d.tipo === 'zona' ? estado.zonas : estado.ejes;
     const nombre = (d.tipo === 'zona' ? 'Z' : 'E') + (lista.length + 1);
     const poly = d.pts.slice();
@@ -834,6 +874,60 @@
     pintarMapa();
     mostrar(nombre + ' guardada.');
     if (d.tipo === 'zona') mostrarCoordenadas(nombre);
+  }
+
+  /* ---------- líneas de quiebre y red de triángulos ---------- */
+
+  function puntoEnTriangulo(E, N, T) {
+    const s = (p, q, r) => (p.E - r.E) * (q.N - r.N) - (q.E - r.E) * (p.N - r.N);
+    const d1 = s({ E: E, N: N }, T[0], T[1]), d2 = s({ E: E, N: N }, T[1], T[2]), d3 = s({ E: E, N: N }, T[2], T[0]);
+    const neg = d1 < 0 || d2 < 0 || d3 < 0, pos = d1 > 0 || d2 > 0 || d3 > 0;
+    return !(neg && pos);
+  }
+
+  // Modo borrar: toca un triángulo y se quita del cálculo. Modo crear: toca tres puntos.
+  function tocarTriangulo(e, bajo, id) {
+    const svg = $('mapa'), o = estado.origen;
+    if (!o) return;
+    const q = svgPunto(svg, e.clientX, e.clientY);
+    const E = q.x + o.x, N = o.y - q.y;
+    if (estado.modoTin === 'borrar') {
+      const tris = (estado.curvas && estado.curvas.triangulos) || [];
+      const T = tris.find(t => puntoEnTriangulo(E, N, t));
+      if (!T) return mostrar('Toca dentro de un triángulo para borrarlo.', true);
+      estado.triEliminados.add(Core.claveTri(T));
+      recalcCurvas(); pintarMapa();
+      mostrar('Triángulo borrado. Las curvas se recalcularon.');
+      return;
+    }
+    if (estado.modoTin === 'crear') {
+      // Elige el punto del levantamiento más cercano al toque (si hay uno cerca)
+      let mejor = null, dist = escalaPx(svg) * 18;
+      estado.puntos.forEach(p => {
+        const dd = Math.hypot(p.E - E, p.N - N);
+        if (dd < dist) { dist = dd; mejor = p; }
+      });
+      if (!mejor) return mostrar('Toca cerca de un punto del levantamiento (son 3 puntos para el triángulo).', true);
+      if (estado.triTmp.some(p => p.orden === mejor.orden)) return mostrar('Ese punto ya está en el triángulo.', true);
+      estado.triTmp.push(mejor);
+      if (estado.triTmp.length === 3) {
+        estado.triCreados.push(estado.triTmp.map(p => ({ E: p.E, N: p.N })));
+        estado.triTmp = [];
+        recalcCurvas(); pintarMapa();
+        mostrar('Triángulo creado. Las curvas se recalcularon.');
+      } else {
+        mostrar('Punto ' + estado.triTmp.length + ' de 3 elegido. Toca el siguiente punto.');
+      }
+      actualizarEstadoModo();
+    }
+  }
+
+  function actualizarEstadoModo() {
+    const t = $('estadoDibujo');
+    if (estado.dibujo) return;
+    if (estado.modoTin === 'borrar') t.textContent = 'Modo borrar triángulos: toca un triángulo para quitarlo.';
+    else if (estado.modoTin === 'crear') t.textContent = 'Modo crear triángulo: toca 3 puntos del levantamiento (' + estado.triTmp.length + ' de 3).';
+    else t.textContent = '';
   }
 
   // Trazo por nombre: primero los dibujados en el plano, luego los del croquis
@@ -1044,6 +1138,9 @@
       if (e.target.classList.contains('tipo')) {
         estado.capas[i].tipo = e.target.value;
         refrescar();
+      } else if (e.target.classList.contains('bloque')) {
+        estado.capas[i].bloque = e.target.value.trim().toUpperCase().replace(/\s+/g, '_');
+        refrescar();
       } else if (e.target.classList.contains('union')) {
         estado.capas[i].union = e.target.value;
         refrescar();
@@ -1163,6 +1260,14 @@
     });
 
     $('btnCalcVolumen').addEventListener('click', calcularVolumen);
+    $('btnQuiebre').addEventListener('click', () => iniciarDibujo('quiebre'));
+    $('btnTerminarQuiebre').addEventListener('click', terminarDibujo);
+    $('chkTriangulos').addEventListener('change', () => { estado.verTri = $('chkTriangulos').checked; pintarMapa(); });
+    $('btnModoBorrarTri').addEventListener('click', () => { estado.modoTin = 'borrar'; actualizarEstadoModo(); mostrar('Toca los triángulos que quieres quitar.'); });
+    $('btnModoCrearTri').addEventListener('click', () => { estado.modoTin = 'crear'; estado.triTmp = []; actualizarEstadoModo(); mostrar('Toca 3 puntos del levantamiento para crear un triángulo.'); });
+    $('btnSalirModo').addEventListener('click', () => { estado.modoTin = null; estado.triTmp = []; actualizarEstadoModo(); });
+    $('btnResetTri').addEventListener('click', () => { estado.triEliminados = new Set(); estado.triCreados = []; recalcCurvas(); pintarMapa(); mostrar('Triángulos restaurados a la red original.'); });
+    $('btnQuitarQuiebres').addEventListener('click', () => { estado.quiebres = []; recalcCurvas(); pintarMapa(); mostrar('Líneas de quiebre quitadas.'); });
     $('btnVerCoords').addEventListener('click', () => mostrarCoordenadas($('selZona').value));
     $('btnAplicarExcPanel').addEventListener('click', () => $('btnAplicarExc').click());
     $('btnAplicarExc').addEventListener('click', () => {

@@ -549,6 +549,23 @@
     return actual;
   }
 
+  // Clave de un triángulo (sus tres vértices por coordenadas, sin importar el orden)
+  function claveTri(objs) { return objs.map(claveP).sort().join('|'); }
+
+  // Aplica al resultado de la triangulación los triángulos borrados y los creados por el usuario.
+  // ed = { eliminados: Set de claves, creados: [[{E,N}, {E,N}, {E,N}], ...] }
+  function aplicarEdicionTri(tris, todos, ed) {
+    const elim = ed.eliminados || new Set();
+    const out = tris.filter(I => !elim.has(claveTri(I.map(i => todos[i]))));
+    const porClave = new Map();
+    todos.forEach((p, i) => porClave.set(claveP(p), i));
+    (ed.creados || []).forEach(T => {
+      const I = T.map(p => porClave.get(claveP(p)));
+      if (I.every(i => i !== undefined) && new Set(I).size === 3) out.push(I);
+    });
+    return out;
+  }
+
   // Curvas de nivel.
   //  puntos:  todos los puntos (con altura h)
   //  bordes:  [{ pts: [punto, ...], cerrado: true/false }]
@@ -570,8 +587,15 @@
     const todos = pts.slice();
     const idx = new Map();
     todos.forEach((p, i) => idx.set(p, i));
+    // Un mismo lugar (mismas coordenadas) no se repite en la triangulación
+    const porClave = new Map();
+    todos.forEach((p, i) => porClave.set(claveP(p), i));
     const indiceDe = p => {
-      if (!idx.has(p)) { idx.set(p, todos.length); todos.push(p); }
+      if (!idx.has(p)) {
+        const k = claveP(p);
+        if (porClave.has(k)) { idx.set(p, porClave.get(k)); }
+        else { idx.set(p, todos.length); porClave.set(k, todos.length); todos.push(p); }
+      }
       return idx.get(p);
     };
 
@@ -612,8 +636,27 @@
       }
     });
 
-    // Triángulos que no cruzan ningún borde
-    const tris = triangular(todos).filter(([i, j, k]) => {
+    // Líneas de quiebre: se añaden puntos cada 1 m a lo largo de la línea, con la altura
+    // interpolada. La triangulación sigue la línea y las curvas cambian de dirección en ella.
+    (o.quiebres || []).forEach(q => {
+      for (let s = 0; s < q.length - 1; s++) {
+        const A = q[s], B = q[s + 1];
+        if (A.h === null || A.h === undefined || B.h === null || B.h === undefined) continue;
+        const L = Math.hypot(B.E - A.E, B.N - A.N);
+        const k = Math.max(1, Math.ceil(L / 1.0));
+        for (let j = 1; j <= k; j++) {
+          const t = j / k;
+          const obj = j === k ? B : { E: A.E + t * (B.E - A.E), N: A.N + t * (B.N - A.N), h: A.h + t * (B.h - A.h) };
+          indiceDe(obj);
+        }
+        indiceDe(A);
+      }
+    });
+
+    // Triángulos que no cruzan ningún borde (con la edición de triángulos del usuario)
+    let triBase = triangular(todos);
+    if (o.triEdit) triBase = aplicarEdicionTri(triBase, todos, o.triEdit);
+    const tris = triBase.filter(([i, j, k]) => {
       const T = [i, j, k];
       for (let e = 0; e < 3; e++) {
         const a = T[e], b = T[(e + 1) % 3];
@@ -693,6 +736,7 @@
       });
       res.curvas.push({ nivel: m * eq, lineas: lineas });
     });
+    res.triangulos = tris.map(I => I.map(i => todos[i]));
     res.curvas.sort((a, b) => a.nivel - b.nivel);
     return res;
   }
@@ -711,7 +755,16 @@
     return nombreFinal;
   }
 
-  // capas: [{ nombre, layer, tipo, puntos, union }] -> texto DXF (un layer por nombre común)
+  // Símbolos básicos para bloques (en metros). Si el bloque ya existe en tu dibujo de AutoCAD,
+  // se usa el de tu biblioteca; estas definiciones solo se crean si el nombre no existe.
+  const BLOQUES_BASICOS = {
+    ARBOL:  [['C', 0, 0, 1.5], ['C', 0, 0, 0.3]],
+    MUEBLE: [['L', -0.5, -0.3, 0.5, -0.3], ['L', 0.5, -0.3, 0.5, 0.3], ['L', 0.5, 0.3, -0.5, 0.3], ['L', -0.5, 0.3, -0.5, -0.3]],
+    POSTE:  [['C', 0, 0, 0.3]],
+    BANCA:  [['L', -1, -0.25, 1, -0.25], ['L', 1, -0.25, 1, 0.25], ['L', 1, 0.25, -1, 0.25], ['L', -1, 0.25, -1, -0.25]]
+  };
+
+  // capas: [{ nombre, layer, tipo, puntos, union, bloque }] -> texto DXF (un layer por nombre común)
   function generarDXF(capas, opciones) {
     const o = Object.assign({ etiquetasPuntos: true, etiquetasArea: true, alturaTexto: 1 }, opciones || {});
     const out = [];
@@ -758,6 +811,25 @@
     par(0, 'ENDTAB');
     par(0, 'ENDSEC');
 
+    // BLOCKS: símbolos básicos usados por las capas con bloque
+    const usados2 = [...new Set(capas.filter(c => c.tipo === 'puntos' && c.bloque && BLOQUES_BASICOS[c.bloque]).map(c => c.bloque))];
+    if (usados2.length) {
+      par(0, 'SECTION'); par(2, 'BLOCKS');
+      usados2.forEach(nombre => {
+        par(0, 'BLOCK'); par(8, '0'); par(2, nombre); par(70, '0'); par(10, '0'); par(20, '0'); par(30, '0'); par(3, nombre);
+        BLOQUES_BASICOS[nombre].forEach(f => {
+          if (f[0] === 'C') {
+            par(0, 'CIRCLE'); par(8, '0'); par(10, num(f[1])); par(20, num(f[2])); par(30, '0'); par(40, num(f[3]));
+          } else {
+            par(0, 'LINE'); par(8, '0'); par(10, num(f[1])); par(20, num(f[2])); par(30, '0');
+            par(11, num(f[3])); par(21, num(f[4])); par(31, '0');
+          }
+        });
+        par(0, 'ENDBLK'); par(8, '0');
+      });
+      par(0, 'ENDSEC');
+    }
+
     // ENTITIES
     par(0, 'SECTION'); par(2, 'ENTITIES');
     items.forEach(it => {
@@ -765,7 +837,12 @@
 
       if (capa.tipo === 'puntos') {
         capa.puntos.forEach(p => {
-          par(0, 'POINT'); par(8, ly); par(10, num(p.E)); par(20, num(p.N)); par(30, num(z(p)));
+          if (capa.bloque) {
+            par(0, 'INSERT'); par(8, ly); par(2, capa.bloque); par(10, num(p.E)); par(20, num(p.N)); par(30, num(z(p)));
+            par(41, '1'); par(42, '1'); par(43, '1'); par(50, '0');
+          } else {
+            par(0, 'POINT'); par(8, ly); par(10, num(p.E)); par(20, num(p.N)); par(30, num(z(p)));
+          }
           if (o.etiquetasPuntos) texto(ly, p.E + alt * 0.5, p.N + alt * 0.5, numeroPunto(p), alt);
         });
         return;
@@ -1031,7 +1108,7 @@
     aNumero, sinAcentos, numeroPunto,
     textoAFilas, libroAFilas, filasAPuntos,
     agrupar, tipoSugerido, figuras, croquis, ajusteCirculo,
-    triangular, curvasNivel, cruza, suavizarLinea,
+    triangular, curvasNivel, cruza, suavizarLinea, claveTri,
     calcular, extension,
     nombreLayerDXF, generarDXF, generarCSV, aFormatoAutocad,
     superficie, volumenCorteRelleno, perfilLongitudinal, seccionesTransversales, dentroDePoligono, terrenoConExcavaciones
