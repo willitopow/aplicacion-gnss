@@ -789,6 +789,13 @@
       mapaCapa.set('__curvas', { ly: lyCurvas, color: 8 });
       mapaCapa.set('__txt', { ly: lyTxt, color: 2 });
     }
+    let lyM = null, lyR = null;
+    if (o.marco) {
+      lyM = nombreLayerDXF('MARCO', usados);
+      lyR = nombreLayerDXF('ROTULO', usados);
+      mapaCapa.set('__marco', { ly: lyM, color: 7 });
+      mapaCapa.set('__rotulo', { ly: lyR, color: 3 });
+    }
 
     const texto = (ly, x, y, s, alt) => {
       par(0, 'TEXT'); par(8, ly); par(10, num(x)); par(20, num(y)); par(30, '0');
@@ -900,6 +907,18 @@
       });
     }
 
+    if (o.marco) {
+      o.marco.L.forEach(l => {
+        const ly = l[4] === 'ROTULO' ? lyR : lyM;
+        par(0, 'LINE'); par(8, ly); par(10, num(l[0])); par(20, num(l[1])); par(30, '0');
+        par(11, num(l[2])); par(21, num(l[3])); par(31, '0');
+      });
+      o.marco.T.forEach(t => {
+        const ly = t.cap === 'ROTULO' ? lyR : lyM;
+        par(0, 'TEXT'); par(8, ly); par(10, num(t.E)); par(20, num(t.N)); par(30, '0');
+        par(40, num(t.h)); if (t.rot) par(50, String(t.rot)); par(1, sinAcentos(t.s));
+      });
+    }
     par(0, 'ENDSEC');
     par(0, 'EOF');
     return out.join('\r\n') + '\r\n';

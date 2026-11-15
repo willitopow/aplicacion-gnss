@@ -9,10 +9,10 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Linderos">
-<link rel="manifest" href="manifest.webmanifest?v=46">
+<link rel="manifest" href="manifest.webmanifest?v=47">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-<link rel="stylesheet" href="css/estilo.css?v=46">
+<link rel="stylesheet" href="css/estilo.css?v=47">
 </head>
 <body>
 <div class="app">
@@ -29,7 +29,7 @@
     <button class="pestana" data-tab="marco" type="button">Marco y rótulo</button>
     <button class="pestana" data-tab="exportar" type="button">Exportar</button>
     <div class="barra-der">
-      <span class="version">Versión 46</span>
+      <span class="version">Versión 47</span>
       <button id="btnInstalar" type="button" class="btn-pequeno" hidden>Instalar</button>
     </div>
   </nav>
@@ -160,6 +160,7 @@
       <div class="botones">
         <button id="btnDXF" type="button" class="boton grande primario"><span class="ico-b">💾</span>DXF</button>
         <label class="boton check-b"><input type="checkbox" id="chkCurvasDXF"> Con curvas</label>
+        <label class="boton check-b"><input type="checkbox" id="chkMarcoDXF" checked> Con marco y rótulo</label>
         <button id="btnCSV" type="button" class="boton">Resultados<br>CSV</button>
         <button id="btnFormato" type="button" class="boton">Puntos formato<br>AutoCAD</button>
         <button id="btnCortesCSV" type="button" class="boton">Cortes<br>CSV</button>
@@ -264,9 +265,9 @@
 
 </div>
 
-<script src="js/core.js?v=46"></script>
-<script src="js/app.js?v=46"></script>
-<script src="js/ui.js?v=46"></script>
+<script src="js/core.js?v=47"></script>
+<script src="js/app.js?v=47"></script>
+<script src="js/ui.js?v=47"></script>
 <script>
   // Registro del service worker (requiere https o localhost)
   if ('serviceWorker' in navigator) {

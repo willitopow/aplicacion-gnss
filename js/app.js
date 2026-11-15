@@ -567,12 +567,12 @@
       for (let E = Math.ceil(ne0 / paso) * paso; E <= ne1; E += paso) {
         s += '<line x1="' + sx(E) + '" y1="' + IY0 + '" x2="' + sx(E) + '" y2="' + IY1 + '" stroke="#64748b" stroke-width="' + mm(0.15) +
              '" stroke-dasharray="' + mm(2) + ' ' + mm(1) + '"/>';
-        s += txt(sx(E), Y0 + mar * 0.7, Math.round(E), mm(2.2), ' text-anchor="middle"');
+        s += txt(sx(E), Y0 + mar * 0.7, Math.round(E), mm(3), ' text-anchor="middle"');
       }
       for (let N = Math.ceil(nn0 / paso) * paso; N <= nn1; N += paso) {
         s += '<line x1="' + IX0 + '" y1="' + sy(N) + '" x2="' + IX1 + '" y2="' + sy(N) + '" stroke="#64748b" stroke-width="' + mm(0.15) +
              '" stroke-dasharray="' + mm(2) + ' ' + mm(1) + '"/>';
-        s += '<text transform="translate(' + (X0 + mar * 0.5) + ',' + sy(N) + ') rotate(-90)" font-size="' + mm(2.2) +
+        s += '<text transform="translate(' + (X0 + mar * 0.5) + ',' + sy(N) + ') rotate(-90)" font-size="' + mm(3) +
              '" fill="#111" text-anchor="middle">' + Math.round(N) + '</text>';
       }
     }
@@ -582,7 +582,7 @@
     s += '<rect x="' + IX0 + '" y="' + IY0 + '" width="' + (IX1 - IX0) + '" height="' + (IY1 - IY0) + '" fill="none" stroke="#111" stroke-width="' + mm(0.3) + '"/>';
 
     // Rótulo: bloque abajo a la derecha
-    const rw = mm(95), rh = mm(40), RX = IX1 - rw, RY = IY1 - rh, fila = mm(7.5);
+    const rw = mm(140), rh = mm(52), RX = IX1 - rw, RY = IY1 - rh, fila = mm(9.5);
     s += '<rect x="' + RX + '" y="' + RY + '" width="' + rw + '" height="' + rh + '" fill="#ffffff" stroke="#111" stroke-width="' + mm(0.4) + '"/>';
     const filas = [
       ['PLANO', m.plano || '—'],
@@ -592,8 +592,8 @@
       ['DIBUJÓ', m.dibujo || '—']
     ];
     filas.forEach((f, i) => {
-      const y = RY + fila * (i + 1) - mm(2.2);
-      s += '<text x="' + (RX + mm(3)) + '" y="' + y + '" font-size="' + mm(i === 0 ? 3.6 : 2.6) + '" fill="#111"' +
+      const y = RY + fila * (i + 1) - mm(2.8);
+      s += '<text x="' + (RX + mm(3)) + '" y="' + y + '" font-size="' + mm(i === 0 ? 5 : 3.6) + '" fill="#111"' +
            (i === 0 ? ' font-weight="bold"' : '') + '>' + esc(f[0]) + ': ' + esc(f[1]) + '</text>';
       if (i < filas.length - 1) {
         s += '<line x1="' + RX + '" y1="' + (RY + fila * (i + 1)) + '" x2="' + (RX + rw) + '" y2="' + (RY + fila * (i + 1)) +
@@ -604,9 +604,9 @@
     // Norte: flecha arriba a la derecha
     if (m.norte) {
       const cx = IX1 - mm(9);
-      s += '<polygon points="' + cx + ',' + (IY0 + mm(7)) + ' ' + (cx - mm(4)) + ',' + (IY0 + mm(16)) + ' ' + (cx + mm(4)) + ',' + (IY0 + mm(16)) +
+      s += '<polygon points="' + cx + ',' + (IY0 + mm(7)) + ' ' + (cx - mm(6)) + ',' + (IY0 + mm(22)) + ' ' + (cx + mm(6)) + ',' + (IY0 + mm(22)) +
            '" fill="#111"/>';
-      s += txt(cx, IY0 + mm(5), 'N', mm(4), ' text-anchor="middle" font-weight="bold"');
+      s += txt(cx, IY0 + mm(5), 'N', mm(7), ' text-anchor="middle" font-weight="bold"');
     }
 
     // Escala gráfica: barra abajo a la izquierda (40 mm de papel)
@@ -616,11 +616,72 @@
       const x0 = IX0 + mm(6), y0 = IY1 - mm(12);
       s += '<rect x="' + x0 + '" y="' + y0 + '" width="' + mm(Lmm / 2) + '" height="' + mm(1.5) + '" fill="#111"/>';
       s += '<rect x="' + (x0 + mm(Lmm / 2)) + '" y="' + y0 + '" width="' + mm(Lmm / 2) + '" height="' + mm(1.5) + '" fill="#ffffff" stroke="#111" stroke-width="' + mm(0.2) + '"/>';
-      s += txt(x0, y0 + mm(5), '0', mm(2.2), ' text-anchor="middle"');
-      s += txt(x0 + mm(Lmm / 2), y0 + mm(5), (L / 2 >= 1000 ? (L / 2000) + ' km' : (L / 2) + ' m'), mm(2.2), ' text-anchor="middle"');
-      s += txt(x0 + mm(Lmm), y0 + mm(5), (L >= 1000 ? (L / 1000) + ' km' : L + ' m'), mm(2.2), ' text-anchor="middle"');
+      s += txt(x0, y0 + mm(5), '0', mm(3), ' text-anchor="middle"');
+      s += txt(x0 + mm(Lmm / 2), y0 + mm(5), (L / 2 >= 1000 ? (L / 2000) + ' km' : (L / 2) + ' m'), mm(3), ' text-anchor="middle"');
+      s += txt(x0 + mm(Lmm), y0 + mm(5), (L >= 1000 ? (L / 1000) + ' km' : L + ' m'), mm(3), ' text-anchor="middle"');
     }
     return s;
+  }
+
+  // Marco, cuadrícula, rótulo, norte y escala como líneas y textos en metros (para el DXF)
+  function primitivasMarco(o) {
+    const m = estado.marco;
+    const G = marcoGeometria(o);
+    const mm = G.mm;
+    const L = [], T = [];
+    const ln = (x1, y1, x2, y2, cap) => L.push([x1, y1, x2, y2, cap]);
+    const rect = (x0, y0, x1, y1, cap) => { ln(x0, y0, x1, y0, cap); ln(x1, y0, x1, y1, cap); ln(x1, y1, x0, y1, cap); ln(x0, y1, x0, y0, cap); };
+    const tx = (x, y, s, h, cap, rot) => T.push({ E: x, N: y, s: String(s), h: h, cap: cap, rot: rot || 0 });
+    const mar = mm(10);
+    const IX0 = G.minE + mar, IX1 = G.maxE - mar, IY0 = G.minN + mar, IY1 = G.maxN - mar;
+    rect(G.minE, G.minN, G.maxE, G.maxN, 'MARCO');
+    rect(IX0, IY0, IX1, IY1, 'MARCO');
+    const paso = Number(m.cuadricula);
+    if (paso > 0) {
+      for (let E = Math.ceil(IX0 / paso) * paso; E <= IX1; E += paso) {
+        ln(E, IY0, E, IY1, 'MARCO');
+        tx(E - mm(4), G.maxN - mar * 0.7, Math.round(E), mm(3), 'MARCO');
+      }
+      for (let N = Math.ceil(IY0 / paso) * paso; N <= IY1; N += paso) {
+        ln(IX0, N, IX1, N, 'MARCO');
+        tx(G.minE + mar * 0.2, N - mm(4), Math.round(N), mm(3), 'MARCO', 90);
+      }
+    }
+    // Rótulo
+    const rw = mm(140), rh = mm(52), RX = IX1 - rw, RY = IY1 - rh, fila = mm(9.5);
+    rect(RX, RY, RX + rw, RY + rh, 'ROTULO');
+    const filas = [
+      ['PLANO', m.plano || '-'],
+      ['PROYECTO', m.proyecto || '-'],
+      ['ESCALA', '1:' + m.escala + '   FORMATO ' + m.formato + (m.orient === 'v' ? ' vertical' : ' horizontal')],
+      ['FECHA', m.fecha || '-'],
+      ['DIBUJO', m.dibujo || '-']
+    ];
+    filas.forEach((f, i) => {
+      tx(RX + mm(3), RY + fila * (i + 1) - mm(2.8), f[0] + ': ' + f[1], mm(i === 0 ? 5 : 3.6), 'ROTULO');
+      if (i < filas.length - 1) ln(RX, RY + fila * (i + 1), RX + rw, RY + fila * (i + 1), 'ROTULO');
+    });
+    // Norte
+    if (m.norte) {
+      const cx = IX1 - mm(9);
+      const yt = IY0 + mm(7), yb = IY0 + mm(22);
+      ln(cx, yt, cx - mm(6), yb, 'MARCO');
+      ln(cx - mm(6), yb, cx + mm(6), yb, 'MARCO');
+      ln(cx + mm(6), yb, cx, yt, 'MARCO');
+      tx(cx - mm(2.5), IY0 + mm(3), 'N', mm(7), 'MARCO');
+    }
+    // Escala gráfica
+    if (m.escalaGraf) {
+      const Lm = escalaNice(40 * m.escala / 1000);
+      const Lmm = Lm * 1000 / m.escala;
+      const x0 = IX0 + mm(6), y0 = IY1 - mm(12);
+      rect(x0, y0, x0 + mm(Lmm / 2), y0 + mm(1.5), 'MARCO');
+      rect(x0 + mm(Lmm / 2), y0, x0 + mm(Lmm), y0 + mm(1.5), 'MARCO');
+      tx(x0, y0 - mm(4), '0', mm(3), 'MARCO');
+      tx(x0 + mm(Lmm / 2), y0 - mm(4), Lm / 2 >= 1000 ? (Lm / 2000) + ' km' : (Lm / 2) + ' m', mm(3), 'MARCO');
+      tx(x0 + mm(Lmm), y0 - mm(4), Lm >= 1000 ? (Lm / 1000) + ' km' : Lm + ' m', mm(3), 'MARCO');
+    }
+    return { L: L, T: T };
   }
 
   // SVG del plano listo para imprimir o guardar: el marco y su contenido a escala de papel
@@ -1142,7 +1203,9 @@
     if (!ext) return mostrar('No hay puntos para exportar.', true);
     const alt = Math.max(ext.w, ext.h, 1) / 200;   // altura de texto proporcional al dibujo
     const curvas = $('chkCurvasDXF').checked && estado.curvas && estado.curvas.curvas.length ? estado.curvas : null;
+    const marco = (estado.marco.activo && $('chkMarcoDXF').checked && estado.origen) ? primitivasMarco(estado.origen) : null;
     const txt = Core.generarDXF(act, {
+      marco: marco,
       etiquetasPuntos: $('chkEtqPts').checked,
       etiquetasArea: $('chkEtqArea').checked,
       alturaTexto: alt,
