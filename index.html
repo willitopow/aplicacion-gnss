@@ -9,10 +9,10 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Linderos">
-<link rel="manifest" href="manifest.webmanifest?v=49">
+<link rel="manifest" href="manifest.webmanifest?v=50">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-<link rel="stylesheet" href="css/estilo.css?v=49">
+<link rel="stylesheet" href="css/estilo.css?v=50">
 </head>
 <body>
 <div class="app">
@@ -28,8 +28,9 @@
     <button class="pestana" data-tab="perfiles" type="button">Perfiles</button>
     <button class="pestana" data-tab="marco" type="button">Marco y rótulo</button>
     <button class="pestana" data-tab="exportar" type="button">Exportar</button>
+    <button class="pestana" data-tab="expPuntos" type="button">Exportar puntos</button>
     <div class="barra-der">
-      <span class="version">Versión 49</span>
+      <span class="version">Versión 50</span>
       <button id="btnInstalar" type="button" class="btn-pequeno" hidden>Instalar</button>
     </div>
   </nav>
@@ -160,6 +161,25 @@
       <div class="titulo-grupo">Marco e impresión</div>
     </div>
 
+    <div class="grupo" data-tab="expPuntos" hidden>
+      <div class="botones">
+        <label class="boton check-b"><input type="checkbox" id="chkExpPuntos" checked> Exportar puntos</label>
+        <label class="boton campo-b">Formato
+          <select id="formatoPuntos" class="selector">
+            <option value="PNEAC" selected>PNEAC (punto, norte, este, altura, código)</option>
+            <option value="PNEAD">PNEAD (con descripción)</option>
+            <option value="PNEA">PNEA (sin código)</option>
+            <option value="PNEZD">PNEZD (formato AutoCAD)</option>
+            <option value="">Personalizado…</option>
+          </select></label>
+        <label class="boton campo-b">Orden de columnas
+          <input type="text" id="letrasSalida" value="PNEAC" style="width:90px"></label>
+        <label class="boton check-b"><input type="checkbox" id="encabezadoSalida"> Con encabezado</label>
+        <button id="btnExportarPuntos" type="button" class="boton grande primario"><span class="ico-b">📤</span>Descargar<br>puntos</button>
+      </div>
+      <div class="titulo-grupo">Exportar puntos y formato (letras: P punto, N norte, E este, A altura, C código, D descripción)</div>
+    </div>
+
     <div class="grupo" data-tab="exportar" hidden>
       <div class="botones">
         <button id="btnDXF" type="button" class="boton grande primario"><span class="ico-b">💾</span>DXF</button>
@@ -259,6 +279,17 @@
       <p class="ayuda">Estos datos se imprimen dentro del rótulo, abajo a la derecha del marco.</p>
     </section>
 
+    <section id="panel-orden" class="flotante" hidden>
+      <header><b>¿Cómo vienen ordenadas las columnas?</b><button type="button" class="cerrar-panel">✕</button></header>
+      <div id="ordenVista" class="ayuda" style="font-family:monospace"></div>
+      <p class="ayuda">Escribe el orden con letras, una por columna: <b>P</b> punto, <b>N</b> norte, <b>E</b> este, <b>A</b> altura, <b>C</b> código, <b>D</b> descripción, <b>-</b> ignorar. Ejemplo: PNEAC.</p>
+      <div class="rejilla">
+        <label class="campo">Orden <input type="text" id="ordenLetras"></label>
+        <label class="campo"><input type="checkbox" id="ordenEncabezado"> La primera fila es encabezado</label>
+      </div>
+      <button id="btnOrdenAplicar" type="button" class="primario">Importar con este orden</button>
+    </section>
+
     <section id="panel-croquis" class="flotante ancho" hidden>
       <header><b>Figuras del croquis</b><button type="button" class="cerrar-panel">✕</button></header>
       <p class="ayuda">Una línea por figura: <code>NOMBRE / tipo / orden</code>. Tipos: <code>polilinea</code> (cerrada si repites el primero), <code>arco</code>, <code>circulo</code>, <code>linea</code>, <code>borde</code>, <code>puntos</code>.</p>
@@ -273,9 +304,9 @@
 
 </div>
 
-<script src="js/core.js?v=49"></script>
-<script src="js/app.js?v=49"></script>
-<script src="js/ui.js?v=49"></script>
+<script src="js/core.js?v=50"></script>
+<script src="js/app.js?v=50"></script>
+<script src="js/ui.js?v=50"></script>
 <script>
   // Registro del service worker (requiere https o localhost)
   if ('serviceWorker' in navigator) {

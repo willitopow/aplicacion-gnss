@@ -137,8 +137,46 @@
     }
   }
 
+  // ¿La app está segura del orden de las columnas? Si no, pregunta al usuario
+  function esAmbiguo(r, filas) {
+    if (r.encabezado) return false;
+    const ncol = Math.max.apply(null, filas.map(f => f.length));
+    if (ncol < 3 || ncol > 6) return true;
+    if (r.mapa.h === undefined) return true;
+    if (r.mapa.name === undefined && r.mapa.code === undefined) return true;
+    // Una altura con solo enteros suele ser un número de punto o un código
+    const hs = r.puntos.map(p => p.h).filter(h => h !== null && h !== undefined);
+    if (hs.length && hs.every(h => Number.isInteger(h))) return true;
+    return false;
+  }
+
   function procesar(filas) {
     const r = Core.filasAPuntos(filas);
+    if (esAmbiguo(r, filas)) return abrirPanelOrden(filas, r);
+    aplicarImportacion(r);
+  }
+
+  function abrirPanelOrden(filas, r) {
+    estado.filasPendientes = filas;
+    const ncol = Math.max.apply(null, filas.map(f => f.length));
+    $('ordenLetras').value = Core.letrasDeMapa(r.mapa, ncol);
+    $('ordenEncabezado').checked = false;
+    $('ordenVista').innerHTML = filas.slice(0, 3).map(f => f.map(c => esc(String(c))).join('  |  ')).join('<br>');
+    if (window.verPanel) window.verPanel('panel-orden');
+    mostrar('No estoy seguro del orden de las columnas. Revísalo en el panel y escribe el orden con letras (ej. PNEAC).', true);
+  }
+
+  function procesarConOrden() {
+    try {
+      const r = Core.filasPorOrden(estado.filasPendientes || [], $('ordenLetras').value, $('ordenEncabezado').checked);
+      $('panel-orden').hidden = true;
+      aplicarImportacion(r);
+    } catch (e) {
+      mostrar('Error: ' + e.message, true);
+    }
+  }
+
+  function aplicarImportacion(r) {
     const nombres = { name: 'Nombre', code: 'Código', N: 'N', E: 'E', h: 'h' };
     const cols = Object.keys(r.mapa).map(k => nombres[k] + ' (col ' + (r.mapa[k] + 1) + ')').join(', ');
 
@@ -1232,6 +1270,19 @@
     return new Set(ni.filter((n, i) => i % 5 === 0));
   }
 
+  // Exportar puntos: formato elegido con letras (PNEAC, PNEAD, PNEA, PNEZD = AutoCAD)
+  function exportarPuntos() {
+    if (!$('chkExpPuntos').checked) return mostrar('Marca "Exportar puntos" para descargar los puntos.', true);
+    const pts = puntosDe(activas());
+    if (!pts.length) return mostrar('No hay puntos activos para exportar.', true);
+    const pedido = ($('letrasSalida').value || 'PNEAC').trim().toUpperCase();
+    const esAutocad = pedido === 'PNEZD';                     // formato de AutoCAD (número,N,E,h,descripción)
+    const letras = esAutocad ? 'PNEZD' : (pedido.replace(/[^PNEACD-]/g, '') || 'PNEAC');
+    const txt = esAutocad ? Core.aFormatoAutocad(pts) : Core.puntosATexto(pts, letras, $('encabezadoSalida').checked);
+    descargar((estado.nombreBase || 'puntos') + '_' + letras + '.csv', txt, 'text/csv');
+    mostrar(pts.length + ' puntos exportados en formato ' + letras + '.');
+  }
+
   function exportarDXF() {
     // Opciones de exportación: puntos, figuras, números y altura en los puntos
     const incPuntos = $('chkDxfPuntos').checked, incFig = $('chkDxfFiguras').checked;
@@ -1513,6 +1564,11 @@
     });
     $('btnImprimir').addEventListener('click', imprimirPlano);
     $('btnDXF').addEventListener('click', exportarDXF);
+    $('btnOrdenAplicar').addEventListener('click', procesarConOrden);
+    $('btnExportarPuntos').addEventListener('click', exportarPuntos);
+    $('formatoPuntos').addEventListener('change', () => {
+      if ($('formatoPuntos').value) $('letrasSalida').value = $('formatoPuntos').value;
+    });
     $('btnCSV').addEventListener('click', exportarCSV);
 
     iniciarMapa();

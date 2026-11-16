@@ -180,6 +180,71 @@
     return { puntos: puntos, omitidos: omitidos, mapa: mapa, encabezado: inicio === 1 };
   }
 
+  // Orden de columnas dado con letras: P punto/nombre, N norte, E este, A altura,
+  // C código, D descripción, - ignorar. Ej.: "PNEAC" = punto, norte, este, altura, código.
+  function filasPorOrden(filas, letras, conEncabezado) {
+    filas = filas.filter(f => f && f.some(c => limpiar(c) !== ''));
+    if (!filas.length) throw new Error('El archivo está vacío.');
+    const L = String(letras || '').toUpperCase().replace(/[^PNEACD-]/g, '');
+    const col = {};
+    for (let i = 0; i < L.length; i++) {
+      const t = L[i];
+      if (t === '-') continue;
+      if (col[t] === undefined) col[t] = [];
+      col[t].push(i);
+    }
+    if (col.N === undefined || col.E === undefined) throw new Error('El orden debe incluir N (norte) y E (este), por ejemplo PNEAC.');
+    const inicio = conEncabezado ? 1 : 0;
+    const puntos = [], omitidos = [];
+    filas.slice(inicio).forEach((f, i) => {
+      const N = aNumero(f[col.N[0]]), E = aNumero(f[col.E[0]]);
+      if (!isFinite(N) || !isFinite(E)) { omitidos.push(i + inicio + 1); return; }
+      const h = col.A ? aNumero(f[col.A[0]]) : NaN;
+      const nombre = col.P ? limpiar(f[col.P[0]]) : '';
+      const codigo = [...(col.C || []), ...(col.D || [])].map(k => limpiar(f[k])).filter(Boolean).join(' ');
+      puntos.push({ orden: puntos.length, nombre: nombre || String(puntos.length + 1), codigo: codigo, N: N, E: E, h: isFinite(h) ? h : null });
+    });
+    if (!puntos.length) throw new Error('No hay puntos con N y E válidos.');
+    const mapa = {};
+    if (col.P) mapa.name = col.P[0];
+    if (col.N) mapa.N = col.N[0];
+    if (col.E) mapa.E = col.E[0];
+    if (col.A) mapa.h = col.A[0];
+    if (col.C || col.D) mapa.code = (col.C || col.D)[0];
+    return { puntos: puntos, omitidos: omitidos, mapa: mapa, encabezado: !!conEncabezado };
+  }
+
+  // Letras de orden que corresponden a lo que detectó la app (para mostrarlas al usuario)
+  function letrasDeMapa(mapa, ncol) {
+    const letras = Array(ncol).fill('-');
+    Object.keys(mapa).forEach(k => {
+      const t = { name: 'P', N: 'N', E: 'E', h: 'A', code: 'C' }[k];
+      if (t && mapa[k] !== undefined && mapa[k] < ncol) letras[mapa[k]] = t;
+    });
+    return letras.join('');
+  }
+
+  // Puntos -> texto en el orden de letras dado (P, N, E, A, C, D). PNEZD = formato AutoCAD.
+  function puntosATexto(puntos, letras, conEncabezado) {
+    const L = String(letras || 'PNEAC').toUpperCase();
+    const nombres = { P: 'Punto', N: 'Norte', E: 'Este', A: 'Altura', C: 'Codigo', D: 'Descripcion' };
+    const fmt3 = v => (v === null || v === undefined || !isFinite(v)) ? '' : Number(v).toFixed(3);
+    const lineas = [];
+    if (conEncabezado) lineas.push([...L].map(t => nombres[t] || '').join(','));
+    puntos.forEach(p => {
+      const fila = [...L].map(t => {
+        if (t === 'P') return String(p.nombre || '');
+        if (t === 'N') return fmt3(p.N);
+        if (t === 'E') return fmt3(p.E);
+        if (t === 'A') return fmt3(p.h);
+        if (t === 'C' || t === 'D') return String(p.codigo || '').replace(/[,;\r\n]/g, ' ').replace(/\s+/g, ' ').trim();
+        return '';
+      });
+      lineas.push(fila.join(','));
+    });
+    return lineas.join('\r\n') + '\r\n';
+  }
+
   /* ---------- agrupación ---------- */
 
   // Orden numérico natural: PT2 < PT10
@@ -1141,7 +1206,7 @@
     aNumero, sinAcentos, numeroPunto,
     textoAFilas, libroAFilas, filasAPuntos,
     agrupar, tipoSugerido, figuras, croquis, ajusteCirculo,
-    triangular, curvasNivel, cruza, suavizarLinea, claveTri,
+    triangular, curvasNivel, cruza, suavizarLinea, claveTri, filasPorOrden, letrasDeMapa, puntosATexto,
     calcular, extension,
     nombreLayerDXF, generarDXF, generarCSV, aFormatoAutocad,
     superficie, volumenCorteRelleno, perfilLongitudinal, seccionesTransversales, dentroDePoligono, terrenoConExcavaciones
