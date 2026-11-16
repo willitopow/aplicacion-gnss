@@ -9,10 +9,10 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Linderos">
-<link rel="manifest" href="manifest.webmanifest?v=50">
+<link rel="manifest" href="manifest.webmanifest?v=51">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-<link rel="stylesheet" href="css/estilo.css?v=50">
+<link rel="stylesheet" href="css/estilo.css?v=51">
 </head>
 <body>
 <div class="app">
@@ -30,7 +30,7 @@
     <button class="pestana" data-tab="exportar" type="button">Exportar</button>
     <button class="pestana" data-tab="expPuntos" type="button">Exportar puntos</button>
     <div class="barra-der">
-      <span class="version">Versión 50</span>
+      <span class="version">Versión 51</span>
       <button id="btnInstalar" type="button" class="btn-pequeno" hidden>Instalar</button>
     </div>
   </nav>
@@ -172,12 +172,12 @@
             <option value="PNEZD">PNEZD (formato AutoCAD)</option>
             <option value="">Personalizado…</option>
           </select></label>
-        <label class="boton campo-b">Orden de columnas
-          <input type="text" id="letrasSalida" value="PNEAC" style="width:90px"></label>
+        <label class="boton campo-b">Orden en que se descargan las columnas
+          <input type="text" id="letrasSalida" value="PNEAC" style="width:90px" title="Letras: P punto, N norte, E este, A altura, C código, D descripción, - vacío. Ej.: PNEAC"></label>
         <label class="boton check-b"><input type="checkbox" id="encabezadoSalida"> Con encabezado</label>
         <button id="btnExportarPuntos" type="button" class="boton grande primario"><span class="ico-b">📤</span>Descargar<br>puntos</button>
       </div>
-      <div class="titulo-grupo">Exportar puntos y formato (letras: P punto, N norte, E este, A altura, C código, D descripción)</div>
+      <div class="titulo-grupo">Descargar puntos: escribe el orden de las columnas (P punto, N norte, E este, A altura, C código, D descripción). Ej.: PNEAC</div>
     </div>
 
     <div class="grupo" data-tab="exportar" hidden>
@@ -304,9 +304,9 @@
 
 </div>
 
-<script src="js/core.js?v=50"></script>
-<script src="js/app.js?v=50"></script>
-<script src="js/ui.js?v=50"></script>
+<script src="js/core.js?v=51"></script>
+<script src="js/app.js?v=51"></script>
+<script src="js/ui.js?v=51"></script>
 <script>
   // Registro del service worker (requiere https o localhost)
   if ('serviceWorker' in navigator) {
