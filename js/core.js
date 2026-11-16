@@ -906,7 +906,16 @@
             par(30, num(cv.nivel)); par(70, 0);
           });
           par(0, 'SEQEND'); par(8, lyCurvas);
-          texto(lyTxt, l.etiqueta.E, l.etiqueta.N, cv.nivel.toFixed(2), o.alturaTexto);
+          if (!o.nivelesEtiq || o.nivelesEtiq.has(cv.nivel)) {
+            // Cota girada a lo largo de la curva (igual que en pantalla)
+            const n = pts.length, k = Math.floor(n / 2);
+            const pa = pts[Math.max(0, k - 1)], pb = pts[Math.min(n - 1, k + 1)];
+            let ang = Math.atan2(pb.N - pa.N, pb.E - pa.E) * 180 / Math.PI;
+            if (ang > 90) ang -= 180;
+            if (ang < -90) ang += 180;
+            par(0, 'TEXT'); par(8, lyTxt); par(10, num(l.etiqueta.E)); par(20, num(l.etiqueta.N)); par(30, '0');
+            par(40, num(o.alturaTexto)); par(50, num(ang)); par(1, sinAcentos(cv.nivel.toFixed(2)));
+          }
         });
       });
     }

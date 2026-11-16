@@ -9,10 +9,10 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Linderos">
-<link rel="manifest" href="manifest.webmanifest?v=48">
+<link rel="manifest" href="manifest.webmanifest?v=49">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-<link rel="stylesheet" href="css/estilo.css?v=48">
+<link rel="stylesheet" href="css/estilo.css?v=49">
 </head>
 <body>
 <div class="app">
@@ -29,7 +29,7 @@
     <button class="pestana" data-tab="marco" type="button">Marco y rótulo</button>
     <button class="pestana" data-tab="exportar" type="button">Exportar</button>
     <div class="barra-der">
-      <span class="version">Versión 48</span>
+      <span class="version">Versión 49</span>
       <button id="btnInstalar" type="button" class="btn-pequeno" hidden>Instalar</button>
     </div>
   </nav>
@@ -85,6 +85,10 @@
         <label class="boton check-b"><input type="checkbox" id="chkSuave" checked> Suaves</label>
         <label class="boton check-b"><input type="checkbox" id="chkAlturas" checked> Altura en puntos</label>
         <button id="btnQuiebre" type="button" class="boton grande"><span class="ico-b">〰️</span>Línea de<br>quiebre</button>
+        <label class="boton campo-b">Figura del croquis
+          <select id="selFigQuiebre" class="selector"></select></label>
+        <button id="btnFigQuiebre" type="button" class="boton">Usar figura<br>como quiebre</button>
+        <label class="boton check-b"><input type="checkbox" id="chkCurvasCada5"> Etiquetar de 5 en 5</label>
         <button id="btnTerminarQuiebre" type="button" class="boton">Terminar<br>quiebre</button>
         <button id="btnQuitarQuiebres" type="button" class="boton peligro">Quitar<br>quiebres</button>
         <label class="boton check-b"><input type="checkbox" id="chkTriangulos"> Ver triángulos</label>
@@ -269,9 +273,9 @@
 
 </div>
 
-<script src="js/core.js?v=48"></script>
-<script src="js/app.js?v=48"></script>
-<script src="js/ui.js?v=48"></script>
+<script src="js/core.js?v=49"></script>
+<script src="js/app.js?v=49"></script>
+<script src="js/ui.js?v=49"></script>
 <script>
   // Registro del service worker (requiere https o localhost)
   if ('serviceWorker' in navigator) {

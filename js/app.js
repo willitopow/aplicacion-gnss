@@ -364,6 +364,7 @@
     const sy = p => -(p.N - o.y);
     const etqPts = $('chkEtqPts').checked;
     const etqArea = $('chkEtqArea').checked;
+    const nivEt = nivelesEtiquetadosActual();
     let g = '';
     let hits = '';   // áreas de toque de los puntos (encima de todo)
     const dibujados = new Set();   // cada punto se dibuja una sola vez, aunque esté en varias capas
@@ -469,7 +470,7 @@
         let ang = Math.atan2(sy(pb) - sy(pa), sx(pb) - sx(pa)) * 180 / Math.PI;
         if (ang > 90) ang -= 180;
         if (ang < -90) ang += 180;
-        g += '<text transform="translate(' + sx(l.etiqueta) + ',' + sy(l.etiqueta) + ') rotate(' + ang + ')" dy="' + (-u * 0.6) +
+        if (!nivEt || nivEt.has(cv.nivel)) g += '<text transform="translate(' + sx(l.etiqueta) + ',' + sy(l.etiqueta) + ') rotate(' + ang + ')" dy="' + (-u * 0.6) +
              '" text-anchor="middle" font-size="' + (u * 3.5) + '" fill="#5b3a1a" stroke="#ffffff" stroke-width="' + (u * 0.9) +
              '" paint-order="stroke">' + cv.nivel.toFixed(2) + '</text>';
       }));
@@ -544,6 +545,26 @@
     return mejor;
   }
 
+  // Escala gráfica: 4 tramos alternados, valores en cada división, título y recuadro.
+  // Devuelve geometría en metros (N hacia arriba) con origen en la esquina inferior izquierda de la barra.
+  function geomEscala(m, mm, x0, y0) {
+    const seg = escalaNice(60 * m.escala / 4000);      // metros por tramo (60 mm de papel en total)
+    const segMM = seg * 1000 / m.escala;               // tramo en mm de papel
+    const barra = mm(2.5), total = mm(segMM * 4);
+    const rects = [];
+    for (let k = 0; k < 4; k++) {
+      rects.push({ x: x0 + mm(segMM * k), y: y0, w: mm(segMM), h: barra, fill: k % 2 === 0 ? '#111' : '#ffffff' });
+    }
+    const etiqueta = v => (v >= 1000 ? (v / 1000) + ' km' : v + ' m');
+    const textos = [];
+    for (let k = 0; k <= 4; k++) {
+      textos.push({ x: x0 + mm(segMM * k), y: y0 - mm(3.5), s: k === 0 ? '0' : (k === 4 ? etiqueta(seg * 4) : String(seg * k)), h: mm(3), centro: true });
+    }
+    textos.push({ x: x0, y: y0 + barra + mm(4), s: 'ESCALA GRÁFICA  1:' + m.escala, h: mm(3.2), negrita: true });
+    const caja = { x: x0 - mm(4), y: y0 - mm(8), w: total + mm(8), h: barra + mm(4) + mm(12) };
+    return { rects: rects, textos: textos, caja: caja };
+  }
+
   // Marco completo. soloFondo: rectángulo blanco que va debajo del dibujo al imprimir
   function construirMarco(o, soloFondo) {
     const m = estado.marco;
@@ -609,16 +630,19 @@
       s += txt(cx, IY0 + mm(5), 'N', mm(7), ' text-anchor="middle" font-weight="bold"');
     }
 
-    // Escala gráfica: barra abajo a la izquierda (40 mm de papel)
+    // Escala gráfica: barra abajo a la izquierda
     if (m.escalaGraf) {
-      const L = escalaNice(40 * m.escala / 1000);          // metros que se representan
-      const Lmm = L * 1000 / m.escala;                     // longitud de la barra en mm
-      const x0 = IX0 + mm(6), y0 = IY1 - mm(12);
-      s += '<rect x="' + x0 + '" y="' + y0 + '" width="' + mm(Lmm / 2) + '" height="' + mm(1.5) + '" fill="#111"/>';
-      s += '<rect x="' + (x0 + mm(Lmm / 2)) + '" y="' + y0 + '" width="' + mm(Lmm / 2) + '" height="' + mm(1.5) + '" fill="#ffffff" stroke="#111" stroke-width="' + mm(0.2) + '"/>';
-      s += txt(x0, y0 + mm(5), '0', mm(3), ' text-anchor="middle"');
-      s += txt(x0 + mm(Lmm / 2), y0 + mm(5), (L / 2 >= 1000 ? (L / 2000) + ' km' : (L / 2) + ' m'), mm(3), ' text-anchor="middle"');
-      s += txt(x0 + mm(Lmm), y0 + mm(5), (L >= 1000 ? (L / 1000) + ' km' : L + ' m'), mm(3), ' text-anchor="middle"');
+      // geomEscala trabaja en coordenadas de terreno: se pasa la esquina en metros, no en el SVG
+      const E1 = geomEscala(m, mm, G.minE + mar + mm(6), G.minN + mar + mm(12));
+      const cj = E1.caja;
+      s += '<rect x="' + sx(cj.x) + '" y="' + sy(cj.y + cj.h) + '" width="' + cj.w + '" height="' + cj.h + '" fill="#ffffff" stroke="#111" stroke-width="' + mm(0.2) + '"/>';
+      E1.rects.forEach(r => {
+        s += '<rect x="' + sx(r.x) + '" y="' + sy(r.y + r.h) + '" width="' + r.w + '" height="' + r.h + '" fill="' + r.fill + '" stroke="#111" stroke-width="' + mm(0.2) + '"/>';
+      });
+      E1.textos.forEach(t => {
+        s += '<text x="' + sx(t.x) + '" y="' + sy(t.y) + '" font-size="' + t.h + '" fill="#111"' +
+             (t.centro ? ' text-anchor="middle"' : '') + (t.negrita ? ' font-weight="bold"' : '') + '>' + esc(t.s) + '</text>';
+      });
     }
     return s;
   }
@@ -674,14 +698,10 @@
     }
     // Escala gráfica
     if (m.escalaGraf) {
-      const Lm = escalaNice(40 * m.escala / 1000);
-      const Lmm = Lm * 1000 / m.escala;
-      const x0 = IX0 + mm(6), y0 = IY0 + mm(12);   // barra abajo a la izquierda
-      rect(x0, y0, x0 + mm(Lmm / 2), y0 + mm(1.5), 'MARCO');
-      rect(x0 + mm(Lmm / 2), y0, x0 + mm(Lmm), y0 + mm(1.5), 'MARCO');
-      tx(x0, y0 - mm(4), '0', mm(3), 'MARCO');
-      tx(x0 + mm(Lmm / 2), y0 - mm(4), Lm / 2 >= 1000 ? (Lm / 2000) + ' km' : (Lm / 2) + ' m', mm(3), 'MARCO');
-      tx(x0 + mm(Lmm), y0 - mm(4), Lm >= 1000 ? (Lm / 1000) + ' km' : Lm + ' m', mm(3), 'MARCO');
+      const E1 = geomEscala(m, mm, IX0 + mm(6), IY0 + mm(20));
+      rect(E1.caja.x, E1.caja.y, E1.caja.x + E1.caja.w, E1.caja.y + E1.caja.h, 'MARCO');
+      E1.rects.forEach(r => rect(r.x, r.y, r.x + r.w, r.y + r.h, 'MARCO'));
+      E1.textos.forEach(t => tx(t.centro ? t.x - t.h * t.s.length * 0.3 : t.x, t.y, t.s, t.h, 'MARCO'));
     }
     return { L: L, T: T };
   }
@@ -875,6 +895,13 @@
   function actualizarSelectoresCortes() {
     const sz = $('selZona'), se = $('selEje');
     const zonaAnt = sz.value, ejeAnt = se.value;
+    const selF = $('selFigQuiebre');
+    if (selF) {
+      const valF = selF.value;
+      const figs = estado.capas.filter(c => c.croquis && ['polilinea', 'arco', 'linea', 'borde'].indexOf(c.tipo) >= 0).map(c => c.nombre);
+      selF.innerHTML = figs.map(n => '<option value="' + esc(n) + '">' + esc(n) + '</option>').join('');
+      if (figs.indexOf(valF) >= 0) selF.value = valF;
+    }
     // Zonas: solo las que se crean picando en el plano (no las figuras cerradas del croquis)
     const zonas = estado.zonas.map(t => t.nombre);
     const ejesCroquis = estado.capas.filter(c => c.croquis && (c.tipo === 'linea' || c.tipo === 'arco' || c.tipo === 'polilinea')).map(c => c.nombre);
@@ -1198,6 +1225,13 @@
 
   /* ---------- exportación ---------- */
 
+  // Niveles que llevan etiqueta: todas las curvas, o una de cada 5 (desde la más baja)
+  function nivelesEtiquetadosActual() {
+    if (!$('chkCurvasCada5').checked || !estado.curvas || !estado.curvas.curvas.length) return null;
+    const ni = [...new Set(estado.curvas.curvas.map(c => c.nivel))].sort((x, y) => x - y);
+    return new Set(ni.filter((n, i) => i % 5 === 0));
+  }
+
   function exportarDXF() {
     // Opciones de exportación: puntos, figuras, números y altura en los puntos
     const incPuntos = $('chkDxfPuntos').checked, incFig = $('chkDxfFiguras').checked;
@@ -1212,6 +1246,7 @@
       marco: marco,
       etiquetasPuntos: $('chkDxfNumeros').checked,
       alturasPuntos: $('chkDxfAlturas').checked,
+      nivelesEtiq: nivelesEtiquetadosActual(),
       etiquetasArea: $('chkEtqArea').checked,
       alturaTexto: alt,
       curvas: curvas
@@ -1378,6 +1413,18 @@
 
     $('btnCalcVolumen').addEventListener('click', calcularVolumen);
     $('btnQuiebre').addEventListener('click', () => iniciarDibujo('quiebre'));
+    $('btnFigQuiebre').addEventListener('click', () => {
+      const nombre = $('selFigQuiebre').value;
+      const fig = nombre ? figuraDelCroquis(nombre) : null;
+      if (!fig || fig.length < 2) return mostrar('Elige una figura del croquis (polilínea, arco o línea).', true);
+      const poly = fig.map(p => ({ E: p.E, N: p.N }));
+      const cerrada = fig.cerrada || Math.hypot(poly[0].E - poly[poly.length - 1].E, poly[0].N - poly[poly.length - 1].N) < 1e-3;
+      if (cerrada && poly.length > 2) poly.push({ E: poly[0].E, N: poly[0].N });   // cerrada: cuerpo de agua
+      estado.quiebres.push({ poly: poly, origen: nombre });
+      recalcCurvas(); pintarMapa();
+      mostrar('Figura "' + nombre + '" usada como línea de quiebre' + (cerrada ? ' (cerrada: se trata como lago).' : '.'));
+    });
+    $('chkCurvasCada5').addEventListener('change', () => { pintarMapa(); });
     $('btnTerminarQuiebre').addEventListener('click', terminarDibujo);
     $('chkTriangulos').addEventListener('change', () => { estado.verTri = $('chkTriangulos').checked; pintarMapa(); });
     $('btnModoBorrarTri').addEventListener('click', () => { estado.modoTin = 'borrar'; actualizarEstadoModo(); mostrar('Toca una línea de triángulo para quitarla (las curvas se recalculan).'); });
