@@ -633,6 +633,7 @@
     const rect = (x0, y0, x1, y1, cap) => { ln(x0, y0, x1, y0, cap); ln(x1, y0, x1, y1, cap); ln(x1, y1, x0, y1, cap); ln(x0, y1, x0, y0, cap); };
     const tx = (x, y, s, h, cap, rot) => T.push({ E: x, N: y, s: String(s), h: h, cap: cap, rot: rot || 0 });
     const mar = mm(10);
+    // En el DXF el Norte crece hacia arriba: IY0 es la parte baja del área y IY1 la alta
     const IX0 = G.minE + mar, IX1 = G.maxE - mar, IY0 = G.minN + mar, IY1 = G.maxN - mar;
     rect(G.minE, G.minN, G.maxE, G.maxN, 'MARCO');
     rect(IX0, IY0, IX1, IY1, 'MARCO');
@@ -648,7 +649,7 @@
       }
     }
     // Rótulo
-    const rw = mm(140), rh = mm(52), RX = IX1 - rw, RY = IY1 - rh, fila = mm(9.5);
+    const rw = mm(140), rh = mm(52), RX = IX1 - rw, RY = IY0, fila = mm(9.5);   // abajo a la derecha
     rect(RX, RY, RX + rw, RY + rh, 'ROTULO');
     const filas = [
       ['PLANO', m.plano || '-'],
@@ -658,23 +659,24 @@
       ['DIBUJO', m.dibujo || '-']
     ];
     filas.forEach((f, i) => {
-      tx(RX + mm(3), RY + fila * (i + 1) - mm(2.8), f[0] + ': ' + f[1], mm(i === 0 ? 5 : 3.6), 'ROTULO');
-      if (i < filas.length - 1) ln(RX, RY + fila * (i + 1), RX + rw, RY + fila * (i + 1), 'ROTULO');
+      // La primera fila va arriba del rótulo
+      tx(RX + mm(3), RY + rh - fila * (i + 1) + mm(2.8), f[0] + ': ' + f[1], mm(i === 0 ? 5 : 3.6), 'ROTULO');
+      if (i < filas.length - 1) ln(RX, RY + rh - fila * (i + 1), RX + rw, RY + rh - fila * (i + 1), 'ROTULO');
     });
     // Norte
     if (m.norte) {
       const cx = IX1 - mm(9);
-      const yt = IY0 + mm(7), yb = IY0 + mm(22);
+      const yt = IY1 - mm(7), yb = IY1 - mm(22);   // flecha arriba a la derecha, apuntando al norte
       ln(cx, yt, cx - mm(6), yb, 'MARCO');
       ln(cx - mm(6), yb, cx + mm(6), yb, 'MARCO');
       ln(cx + mm(6), yb, cx, yt, 'MARCO');
-      tx(cx - mm(2.5), IY0 + mm(3), 'N', mm(7), 'MARCO');
+      tx(cx - mm(2.5), IY1 - mm(5), 'N', mm(7), 'MARCO');
     }
     // Escala gráfica
     if (m.escalaGraf) {
       const Lm = escalaNice(40 * m.escala / 1000);
       const Lmm = Lm * 1000 / m.escala;
-      const x0 = IX0 + mm(6), y0 = IY1 - mm(12);
+      const x0 = IX0 + mm(6), y0 = IY0 + mm(12);   // barra abajo a la izquierda
       rect(x0, y0, x0 + mm(Lmm / 2), y0 + mm(1.5), 'MARCO');
       rect(x0 + mm(Lmm / 2), y0, x0 + mm(Lmm), y0 + mm(1.5), 'MARCO');
       tx(x0, y0 - mm(4), '0', mm(3), 'MARCO');
@@ -1197,8 +1199,10 @@
   /* ---------- exportación ---------- */
 
   function exportarDXF() {
-    const act = activas();
-    if (!act.length) return mostrar('Selecciona al menos una capa.', true);
+    // Opciones de exportación: puntos, figuras, números y altura en los puntos
+    const incPuntos = $('chkDxfPuntos').checked, incFig = $('chkDxfFiguras').checked;
+    const act = activas().filter(c => (c.tipo === 'puntos' ? incPuntos : incFig));
+    if (!act.length) return mostrar('Elige al menos puntos o figuras para exportar.', true);
     const ext = Core.extension(puntosDe(act));
     if (!ext) return mostrar('No hay puntos para exportar.', true);
     const alt = Math.max(ext.w, ext.h, 1) / 200;   // altura de texto proporcional al dibujo
@@ -1206,7 +1210,8 @@
     const marco = (estado.marco.activo && $('chkMarcoDXF').checked && estado.origen) ? primitivasMarco(estado.origen) : null;
     const txt = Core.generarDXF(act, {
       marco: marco,
-      etiquetasPuntos: $('chkEtqPts').checked,
+      etiquetasPuntos: $('chkDxfNumeros').checked,
+      alturasPuntos: $('chkDxfAlturas').checked,
       etiquetasArea: $('chkEtqArea').checked,
       alturaTexto: alt,
       curvas: curvas

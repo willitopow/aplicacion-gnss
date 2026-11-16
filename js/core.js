@@ -767,7 +767,7 @@
 
   // capas: [{ nombre, layer, tipo, puntos, union, bloque }] -> texto DXF (un layer por nombre común)
   function generarDXF(capas, opciones) {
-    const o = Object.assign({ etiquetasPuntos: true, etiquetasArea: true, alturaTexto: 1 }, opciones || {});
+    const o = Object.assign({ etiquetasPuntos: true, alturasPuntos: false, etiquetasArea: true, alturaTexto: 1 }, opciones || {});
     const out = [];
     const par = (codigo, valor) => { out.push(String(codigo), String(valor)); };
     const num = v => Number(v).toFixed(4);
@@ -851,7 +851,11 @@
           } else {
             par(0, 'POINT'); par(8, ly); par(10, num(p.E)); par(20, num(p.N)); par(30, num(z(p)));
           }
-          if (o.etiquetasPuntos) texto(ly, p.E + alt * 0.5, p.N + alt * 0.5, numeroPunto(p), alt);
+          // Etiqueta: número, altura o ambos (según lo elegido en Exportar)
+          const partes = [];
+          if (o.etiquetasPuntos) partes.push(numeroPunto(p));
+          if (o.alturasPuntos) partes.push(z(p).toFixed(2));
+          if (partes.length) texto(ly, p.E + alt * 0.5, p.N + alt * 0.5, partes.join(' '), alt);
         });
         return;
       }
